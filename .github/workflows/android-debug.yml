@@ -1,0 +1,41 @@
+# Builds the web app and a DEBUG APK for sideloading. Manual trigger, plus pushes that touch app/.
+# Status: written in Phase 1 / M2 and NOT yet executed (no Android SDK in the authoring environment).
+name: android-debug
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'app/**'
+      - '.github/workflows/android-debug.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: npx cap sync android
+      - name: Assemble debug APK
+        working-directory: app/android
+        run: ./gradlew assembleDebug --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rearview-debug-apk
+          path: app/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error

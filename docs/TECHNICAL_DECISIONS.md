@@ -1,0 +1,299 @@
+# TECHNICAL_DECISIONS
+
+Decision register. Status values: `proposed`, `accepted`, `verified`, `superseded`. **Nothing is `verified` yet** because nothing has been tested on the target hardware. Never silently delete a decision; mark it `superseded` with a pointer. Last updated 2026-10-22 (Phase 0).
+
+Template: ID · Date · Decision · Context/alternatives · Reason · Trade-offs · Verification status · Revisit if.
+
+## D-001 One TypeScript codebase with a Capacitor Android shell
+- **Date:** 2026-10-22 · **Status:** proposed
+- **Decision:** One Vite + TypeScript codebase; Capacitor Android wraps it on the rear phone; the viewer is a static page from the same codebase.
+- **Context/alternatives:** Pure PWA (cannot host a server, no reliable screen-off, secure-context limits); fully native Kotlin (more work, slower to iterate by AI-assisted development); PWA + native split.
+- **Reason:** Fastest path with one language for most logic; pure logic is laptop-testable; camera and sensors available in the WebView.
+- **Trade-offs:** WebView version and speed depend on the old phone; extra layer versus native CameraX; frame copying costs CPU.
+- **Verification:** unverified. Needs M5 (camera permission, WebView version).
+- **Revisit if:** camera or WebView performance fails G1.
+
+## D-002 Native Kotlin plugin for the embedded server
+- **Date:** 2026-10-22 · **Status:** proposed
+- **Decision:** Write a custom Capacitor plugin (`LocalServer`) with HTTP + WebSocket. Library choice (Ktor server or NanoHTTPD) is pending decision DP3 in `IMPLEMENTATION_PLAN.md`.
+- **Context/alternatives:** Existing plugins. `@cappitolian/http-local-server` 0.0.25 (MIT, NanoHTTPD, GET/POST, IP/port discovery; its npm page does not mention WebSocket or static serving; last published about 9 months before 2026-10-22) and `capacitor-server` 0.1.4 (last published about 4 years ago) were found **[V: npm pages]**. A Cordova WebSocket-server plugin is reported not to work with Capacitor ([issue 2930](https://github.com/ionic-team/capacitor/issues/2930)) **[V]**.
+- **Reason:** No verified plugin provides WebSocket + static files + binary frames + token auth + interface binding.
+- **Trade-offs:** ~300 lines of Kotlin to own and secure.
+- **Verification:** plugin facts verified from package pages; the plugin itself is unwritten.
+- **Revisit if:** a maintained plugin with all required features appears and passes review.
+
+## D-003 Rear phone hosts the hotspot where feasible
+- **Date:** 2026-10-22 · **Status:** proposed
+- **Decision:** Rear phone runs the Wi-Fi hotspot; iPhone joins and connects to the hotspot gateway where the server runs.
+- **Context/alternatives:** iPhone hosts and Android joins (the server is then a client-to-client target; isolation behaviour unverified).
+- **Reason:** Server on the AP device should avoid client isolation **[A]**.
+- **Trade-offs:** Hotspot radio adds load and heat to the camera phone; hotspot toggled manually.
+- **Verification:** unverified (needs M6).
+- **Revisit if:** E3 shows the iPhone cannot connect, or thermal results (G4) are unacceptable.
+
+## D-004 iPhone Safari is the initial viewer
+- **Date:** 2026-10-22 · **Status:** proposed
+- **Decision:** Viewer is a web page opened from a QR code; no iPhone app.
+- **Context/alternatives:** Installed PWA (needs HTTPS origin; mixed-content blocks fetching `http://` LAN from an HTTPS page); Capacitor iOS app (needs macOS, Xcode, developer program for lasting installs **[V: Capgo build guide]**).
+- **Reason:** Zero install, no Apple account; page is served over plain HTTP from the rear phone, avoiding mixed content.
+- **Trade-offs:** Screen wake lock needs a secure context **[V: MDN]**, so Auto-Lock must be set to Never; audio needs a user tap **[A]**; not a true PWA.
+- **Verification:** unverified (M6, M9).
+- **Revisit if:** Safari behaviour blocks the demo; then consider HTTPS with a self-signed certificate or a Capacitor iOS wrapper.
+
+## D-005 WebSocket carries JPEG frames and matching detection metadata
+- **Date:** 2026-10-22 · **Status:** proposed
+- **Decision:** One binary message per frame (`RVF1` header, JSON metadata, JPEG). See `PROTOCOL_SPEC.md`.
+- **Context/alternatives:** WebRTC; MJPEG over HTTP; separate metadata channel.
+- **Reason:** Simple, any browser, atomic frame+metadata, easy bounded queues. Detections may lag the picture; `detSeq`/`detAgeMs` make it explicit.
+- **Trade-offs:** More bandwidth than H.264 (estimate 2–4 Mbit/s **[A]**); JPEG encoding CPU cost.
+- **Verification:** unverified (G2).
+- **Revisit if:** G2 latency/bandwidth fails and WebRTC is justified by measurements.
+
+## D-006 Latest-frame-wins with bounded queues
+- **Date:** 2026-10-22 · **Status:** proposed
+- **Decision:** One inference in flight, one encode in flight, `bufferedAmount` cap 256 KiB, per-viewer one-slot buffer with 2-frame credit, viewer draws newest only.
+- **Reason:** Unbounded queues turn slowness into hidden latency, an unsafe failure for a live view.
+- **Trade-offs:** Frames are dropped under load.
+- **Verification:** unverified; protocol tests required.
+- **Revisit if:** measurements show the limits are wrong.
+
+## D-007 LiteRT.js is the first inference candidate
+- **Date:** 2026-10-22 · **Status:** proposed
+- **Decision:** Try `@litertjs/core` (2.5.3 at 2026-10-22 **[V: npm]**) with `litert-community/yolox-nano-litert` (Apache-2.0, FP16, 416×416 NHWC BGR 0-255, output `[1,3549,85]` raw, host decode + NMS **[V: HF model card]**).
+- **Context/alternatives:** Native LiteRT; ONNX Runtime Web; other detectors (RT-DETRv2-S, D-FINE-S, RF-DETR-Nano under `litert-community`, all Apache-2.0 **[V: HF records]**; Ultralytics YOLO11 is AGPL-3.0 **[V]**).
+- **Risk:** The model card reports XNNPACK declines these FP16 graphs **[V]**; LiteRT.js's WASM backend is XNNPACK in WebAssembly **[V: LiteRT.js page]**. WASM CPU is therefore high-risk **[A]**; WebGPU in the WebView is unconfirmed **[Q]**. The documented load example uses `jspi: true` which needs a recent Chromium **[Q]**.
+- **Verification:** unverified. Smallest experiment: E1 (M4).
+- **Revisit if:** E1 fails or is under 3 inferences/s median (decision DP1).
+
+## D-008 Fallback: native LiteRT or a CPU-compatible model
+- **Date:** 2026-10-22 · **Status:** proposed
+- **Decision:** Plan B: Kotlin plugin running the same model with LiteRT `CompiledModel` GPU (recipe on the model card **[V]**; measured only on Pixel 8a and Galaxy S26, not old phones). Plan C: a CPU-friendly INT8 detector — candidates unverified.
+- **Trade-offs:** B needs a working GPU/OpenCL delegate **[Q]**; B adds 8–12 h **[A]**; C changes input size and licence questions.
+- **Verification:** unverified.
+- **Revisit if:** the phone's GPU delegate is unavailable (then C).
+
+## D-009 Gyro/accelerometer are logged only in the MVP
+- **Date:** 2026-10-22 · **Status:** accepted (scope decision)
+- **Decision:** Log samples; do not use them in alert logic.
+- **Reason:** Fusion needs mount calibration, camera-motion compensation and validation; out of the 48 h budget. Logs enable later analysis.
+- **Trade-offs:** No turn awareness in v1.
+- **Verification:** n/a (scope); rate on device unknown.
+- **Revisit if:** G3 data shows turns are the dominant false-positive source.
+
+## D-010 Time-to-contact is a heuristic, not a validated prediction
+- **Date:** 2026-10-22 · **Status:** accepted
+- **Decision:** `ttcProxyS = 1/growth` where growth is the slope of ln(box height); reported with a confidence; never displayed as a distance or collision time; no collision threshold is claimed.
+- **Assumptions:** constant closing speed, motion along the camera axis, non-rotating camera; broken in curves, occlusion, oblique views.
+- **Verification:** unvalidated; thresholds are placeholders until a G3 sweep.
+- **Revisit if:** a validated method with documented calibration exists.
+
+## D-011 Plain HTTP is an acknowledged local-network security limitation
+- **Date:** 2026-10-22 · **Status:** accepted (risk accepted for the prototype)
+- **Decision:** Serve the viewer over HTTP/`ws://` with token auth, interface binding, origin checks, rate limits; document that traffic is not encrypted.
+- **Context/alternatives:** HTTPS with a self-signed certificate (browser warning, trust steps on iPhone).
+- **Reason:** Time budget; WPA2/WPA3 hotspot plus token limits exposure.
+- **Trade-offs:** Token and frames readable by anyone able to observe hotspot traffic.
+- **Verification:** security tests pending.
+- **Revisit if:** others will join the hotspot, or the app leaves personal prototype use.
+
+## D-012 Foreground, screen-on operation for the demo
+- **Date:** 2026-10-22 · **Status:** proposed
+- **Decision:** The app stays in the foreground with the screen on and dimmed; keep-screen-on via a window flag in the plugin. No claim that this guarantees background execution.
+- **Context:** A `camera`-type foreground service needs the `CAMERA` permission and cannot be started from the background on Android 14+ **[V: Android docs]**. WebView pauses when backgrounded **[A]**.
+- **Verification:** unverified (G1, G4).
+- **Revisit if:** screen-off operation becomes a requirement.
+
+## D-013 Timestamp model for cross-device latency
+- **Date:** 2026-10-22 · **Status:** proposed
+- **Decision:** Frames carry `tCaptureMs` (monotonic) and `tCaptureEpochMs`; viewer estimates offset to the rear wall clock via ping/pong. Ground-truth latency uses the two-screen photo method.
+- **Reason:** Rear WebView and server run on the same device and share a wall clock; the iPhone does not.
+- **Verification:** unverified.
+
+## D-014 Repository layout: docs at the root
+- **Date:** 2026-10-22 · **Status:** accepted
+- **Decision:** The repository `driver-assistance/` is the project root; the requested `smart-rearview/` prefix is not used as a subfolder. Application code goes under `app/`.
+- **Reason:** The repo already exists with a one-line README; an extra nesting level adds nothing.
+
+## D-015 Toolchain versions observed at scaffold time
+- **Date:** 2026-10-22 · **Status:** accepted (observed, not a design choice)
+- **Observed:** `@capacitor/core|cli|android` 8.5.3, Vite 8.3.5, Vitest 5.0.5, TypeScript 7.0.2 (installed with the latest tags on 2026-10-22). The generated Android project uses minSdk 24, compileSdk/targetSdk 36, Gradle 8.14.3, and Capacitor's Android module compiles with Java 21 **[V: generated files]**. CI therefore uses JDK 21.
+- **Consequence:** the app's minSdk 24 does not guarantee the old phone's WebView is new enough; that is judged in M5, not by minSdk.
+- **Revisit if:** the phone's Android version is below 7.0 (unsupported) or builds need a different JDK.
+
+## D-016 Decode selects the best class over all 80, then filters to vehicles
+- **Date:** 2026-10-22 · **Status:** proposed
+- **Decision:** For each anchor, take the argmax over all 80 class scores and keep it only if that class is car, motorcycle, bus or truck (matches the model card's reference decode). Score = objectness × class score.
+- **Alternative:** argmax over the four vehicle classes only, which would admit more candidates from anchors that are mostly "person" or "bicycle".
+- **Trade-offs:** the chosen rule is conservative on class confusion but may miss a vehicle whose best COCO class is something else.
+- **Verification:** unit-tested on synthetic tensors only; compare both rules on real clips in G3.
+
+## D-017 npm audit: 3 moderate findings in the Capacitor CLI dev dependency chain
+- **Date:** 2026-10-22 · **Status:** accepted (risk noted)
+- **Context:** `npm audit` reports a `uuid` buffer-bounds advisory (GHSA-w5hq-g745-h8pq) reached through `xcode` from `@capacitor/cli` (build-time tooling, iOS project handling; not bundled into the app). The suggested `--force` fix would install an older CLI, a breaking change.
+- **Decision:** do not force-fix now; re-check when Capacitor releases an update. Not shipped in the APK **[A]**.
+- **Revisit if:** the advisory affects the Android build path, or a fixed CLI is released.
+
+## D-018 Viewer state: LIVE requires camera and detector ok, not every health flag
+- **Date:** 2026-10-23 · **Status:** proposed
+- **Context:** `PROTOCOL_SPEC.md` §10 says LIVE needs "`health` all `ok`", but the spec's own `status` example, and ARCHITECTURE (SensorLogger: missing sensor "does not block alerts in the MVP"), show `sensors: missing` and `thermal: unknown` during normal operation. Taken literally, the viewer would never be LIVE.
+- **Decision:** `src/viewer/viewerState.ts` treats only `health.camera` and `health.detector` as gating. Unknown health (`null`), unknown alert level, unknown ingest state or unknown detection age are treated as **not ok** (DETECTOR_UNAVAILABLE), never as healthy.
+- **Also:** per §10, `detAge = detAgeMs + frame age`. A frame older than about 1.3 s with typical detection lag therefore shows DETECTOR_UNAVAILABLE rather than DELAYED. This follows the spec as written and is tested.
+- **Verification:** unit tests only. Revisit after G2 with the real viewer; if `thermal: hot` should block, add it here.
+
+## D-020 DP1 (provisional): LiteRT.js on WASM with threads is feasible on the OnePlus 6T; WebGPU is not
+- **Date:** 2026-10-24 · **Status:** *superseded by D-022 the same day* (the open risk 1 below materialised: the Capacitor WebView cannot be cross-origin isolated). Kept for the record; the Chrome measurements remain valid.
+- **Evidence (E1, phone Chrome 149, 100 timed runs each):** WebGPU unavailable (`requestAdapter()` null). WASM single thread 739 ms median (1.35/s), p95 753 ms, **fails** the plan's 3/s threshold. WASM **with threads** 212 ms median (4.72/s), p95 240 ms, **passes** the 3/s median and the p95 < 400 ms targets. Output shape `[1,3549,85]` confirmed, no NaN, and person detections landed at the expected positions on the model-card sample (vehicle detection itself not exercised: the sample has no vehicles). The model card's warning that XNNPACK declines the FP16 graph did not stop the WASM path from loading and running. Licence of `@litertjs/core` 2.6.0 is Apache-2.0 (npm metadata), resolving that open question. Raw data: `app/experiments/e1-litert/results/`.
+- **Decision:** continue with Plan A using the **WASM + threads** accelerator, not WebGPU. Plan B (native LiteRT GPU) stays the fallback.
+- **Open risks that could reverse this:**
+  1. Threads need `crossOriginIsolated`. The page was isolated only because the test server sent COOP/COEP. Capacitor serves `https://localhost` without them; a custom `WebViewClient` that adds the headers is the likely fix **[A, unproven]**, otherwise run inference in the native plugin (Plan B).
+  2. Everything was measured in Chrome 149, not in the WebView (148). Re-measure in the app (M5/M7).
+  3. 100 runs from a cool phone prove nothing about sustained thermal behaviour (G1/G4); the phone was also at about 2% battery on USB power.
+  4. Preprocessing (letterbox + BGR conversion), JPEG encoding and camera capture will compete for the same 8 cores; the 4.72/s figure is inference alone.
+- **Revisit if:** the WebView cannot be made cross-origin isolated, the WebView run is under 3/s, or sustained load throttles the phone.
+
+## D-021 Allow cleartext to loopback only, via a network security config
+- **Date:** 2026-10-24 · **Status:** proposed (tested for HTTP `fetch`; a full WebSocket session is not yet tested)
+- **Context:** the app targets SDK 36, where Android blocks cleartext (`http://`, `ws://`) by default. From the `https://localhost` page, `fetch` and `WebSocket` to `http://127.0.0.1` / `ws://127.0.0.1` all failed and never reached the server (E1 WebView run). The ingest socket (`PROTOCOL_SPEC.md` §2, §4) needs exactly this.
+- **Decision:** add `res/xml/network_security_config.xml` permitting cleartext only for `127.0.0.1` and `localhost`, referenced from `AndroidManifest.xml` (`android:networkSecurityConfig`). Not `usesCleartextTraffic="true"`, which would open every host.
+- **Measured:** with this config the calls reached the server and `fetch` succeeded, **with Capacitor `allowMixedContent` left off** (verified: the APK's `capacitor.config.json` had no `android` block). So `allowMixedContent` is not needed for loopback. This answers the open "mixed-content for `ws://127.0.0.1`" question for plain HTTP; the WebSocket handshake itself still needs a real server to confirm.
+- **Trade-off:** any other app on the phone can still reach loopback; the `ingestToken` (PROTOCOL_SPEC §4) remains the control.
+- **Revisit if:** WebSocket upgrade from the WebView to the Kotlin server fails, or the viewer path needs cleartext to other hosts (it does not: the iPhone is the client, not the app).
+
+## D-022 DP1 revised: LiteRT.js in the WebView is below target; move to native inference (Plan B) pending a GPU test
+- **Date:** 2026-10-24 · **Status:** proposed. Supersedes D-020; updates D-007, D-008.
+- **Evidence (E1, OnePlus 6T, Android 11, Capacitor WebView `Chrome/155 ... wv`, 100 timed runs):** WebGPU: no adapter, fails. WASM single thread: median 753 ms, p95 778 ms, **1.33 inferences/s**. WASM + JSPI: 750 ms, 1.33/s. WASM + threads: **impossible**: `crossOriginIsolated` is false and `SharedArrayBuffer` is undefined even though COOP/COEP/CORP headers were delivered to the page (confirmed by reading them back with `fetch`). Same hardware in phone Chrome with isolation: 4.72/s (D-020), so the hardware is capable; the WebView is the limit. Raw: `app/experiments/e1-litert/results/webview-notes.md`.
+- **Decision (DP1):** the plan's rule is "Plan A if ≥ 3/s median with a working accelerator". It fails in the WebView, so go to **Plan B: native LiteRT in the Kotlin plugin**. **Measured the same day (see "Native result" below): native CPU (XNNPACK) already runs the model at 10 to 34 inferences/s, so Plan B is feasible on CPU alone; GPU is optional and untested.**
+- **Native result (2026-10-24, `litert:2.3.0` `CompiledModel`, CPU, 100 runs each, end-to-end incl. tensor copy):** 1 thread 96.1 ms (10.4/s); 2 threads 51.6 ms (19.4/s, p95 52.1); 4 threads 37.5 ms (26.6/s, p95 102); 8 threads 29.1 ms (34.4/s, p95 107). Correct output (person hits at the expected position, same as the WASM run). GPU: all backends fail to compile; the `litert` AAR contains no GPU accelerator libraries (they are in `litert-gpu:2.3.0`, not downloaded). Raw: `app/experiments/e1-litert/results/native-notes.md`. **Starting point for the product: 2 threads** (19/s with a tight p95 and six cores left for camera, JPEG encoding and the WebView); revisit under G1/G4 load. 4/8 threads show an occasional run about 3x slower than the median, probably efficiency-core scheduling **[inferred]**.
+- **Not yet known:** cost of moving the 1.2 MB output tensor from native to the WebView per frame (the harness measured the Java `readFloat` copy only); sustained thermal behaviour (battery temperature rose only 35.2 to 35.9 °C over about 4 minutes of back-to-back runs); memory.
+- **Options considered and not chosen yet:** (a) several single-thread WASM workers each inferring different frames: about 4 workers could reach roughly 5/s in theory but each result arrives ~750 ms after its frame, memory and heat multiply, and it is **unmeasured**; (b) running the page in Chrome instead of the WebView (changes the architecture; rejected); (c) a CPU-friendly INT8 model (Plan C).
+- **Consequences:** `Detector` stays an interface (`ARCHITECTURE.md`); add a native implementation behind it. Decoding, tracking and the rest remain in TypeScript, so the native side returns the raw `[1,3549,85]` tensor (or decoded boxes, to avoid copying 1.2 MB per frame: decide when measured). The MainActivity COOP/COEP experiment was reverted.
+- **Next:** design the native `Detector` (Kotlin plugin: where preprocessing runs, how frames and results cross the WebView boundary); optional GPU timing (see D-023).
+- **Revisit if:** native inference under full pipeline load drops below target, or the native-to-WebView transfer is too slow (then test option (a), or Plan C).
+
+## D-023 LiteRT Android dependency record
+- **Date:** 2026-10-24 · **Status:** accepted for the experiment; product use not yet decided
+- **Update 2026-10-24 (resolved for now):** the dependency is now `implementation` (the native detector, D-024) **with `ai-delivery` excluded**. Checked with `apkanalyzer` on the built APK: no class is defined under `com.google.android.play`; the only reference is a field/method signature inside LiteRT's own `AiPackModelProvider`, which this app never loads. The merged manifest also carried `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_DATA_SYNC` from `litert-api`; removed with `tools:node="remove"`. The merged manifest now declares only `INTERNET`, and the self-test passed with the exclusion in place. The litert manifest still adds optional `uses-native-library` entries (OpenCL, EdgeTPU, MediaTek NPU libraries) and an optional `android.hardware.npu` feature (`required=false`); these only let the app load vendor libraries if present. Not yet done: a network-traffic check on the device while running.
+- **Original record (debug-only phase):** `debugImplementation "com.google.ai.edge.litert:litert:2.3.0"` in `app/android/app/build.gradle` (**debug builds only**; Apache-2.0 per its POM; `litert-api` 2.3.0, 945,619 bytes, comes with it). `litert` AAR 7,640,140 bytes (arm64-v8a `libLiteRt.so` 5.6 MB). The harness is `src/debug/.../bench/BenchActivity.java` plus a debug-only manifest; the model and sample are in `src/debug/assets` (git-ignored). None of it is in release builds.
+- **Transitive dependencies (from the POM):** `androidx.lifecycle:lifecycle-runtime`, `com.google.guava:guava:33.5.0-android`, `org.jetbrains.kotlinx:kotlinx-coroutines-guava`, and **`com.google.android.play:ai-delivery:0.1.1-alpha01`** (Google Play "AI packs" delivery, 219,522 bytes). The project forbids analytics SDKs and any data leaving the phones. `ai-delivery` is only used by `ModelProvider`/`AiPackModelProvider` for Play-delivered models, which this project does not call, but it is shipped code from a Play library. **Before this dependency goes into a release build:** inspect the merged manifest and dex for network or Play services use, and consider excluding `ai-delivery`. Not yet done.
+- **Also available, not downloaded:** `litert-gpu:2.3.0` (4,695,499 bytes, GPU accelerator libraries). `litert-npu-runtime-*` artifacts exist for other SoCs; irrelevant for the OnePlus 6T.
+- **Revisit if:** a release build needs it (do the `ai-delivery` review first), or a lighter artifact appears.
+
+## D-024 Native detector design (Capacitor plugin in Java, CPU, 2 threads)
+- **Date:** 2026-10-24 · **Status:** proposed (works on the OnePlus 6T with the model-card sample; no camera, vehicle image or sustained-load test yet). Implements D-022.
+- **Decisions:**
+  1. **Language: Java, not Kotlin.** The Android project is Java-only; Kotlin would need the Kotlin Gradle plugin and compiler (an unapproved download of about 100 MB). The Capacitor plugin API and the LiteRT Kotlin API are callable from Java, and the pure parts (`YoloxDecoder`, `Preprocess`) avoid Android types so a later Kotlin conversion is mechanical. The Kotlin `LocalServer` (D-002) will force the Kotlin toolchain anyway; convert the detector then if wanted.
+  2. **Decode and NMS run natively** (`YoloxDecoder.java`), returning a few boxes instead of a 1.2 MB tensor across the bridge. The TypeScript `core/decode.ts` stays the reference (also used by replay/tests). The two are tied together by `app/tests/fixtures/decode-golden.txt` (10 scenarios, generated from the TS decoder, read by both test suites). The golden test exposed one reference quirk, kept on purpose: a box of raw size -30 (width about 3e-12) survives because it is strictly positive.
+  3. **Frame transport:** the WebView letterboxes on a canvas, drops alpha, base64-encodes (692,224 chars) and passes it in the plugin call. Simple and works, but costs about 50 ms of bridge overhead per frame plus about 36 ms of JS packing. **Likely optimisation:** send binary frames over the planned loopback WebSocket ingest (D-021, PROTOCOL_SPEC §2) instead of JSON/base64; measure before deciding.
+  4. **One inference in flight:** a `detect` during a running one is rejected with `BUSY` and the wrapper returns `null` (frame dropped, D-006). Bad input is rejected (`BAD_FRAME`, size caps), never crashes.
+  5. **Warm-up in `init`:** three inferences on a gray frame so the first real frame is not the slow one. It helped only partly: the first real inference after `init` still took 151 ms against a 71 ms median (cause not established; CPU frequency ramp after idle is suspected). Revisit under G1.
+  6. **Manifest:** removed `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_DATA_SYNC` that `litert-api` adds for Play AI-pack downloads (`tools:node="remove"`); the merged manifest now declares only `INTERNET`.
+  7. **Model** is a normal asset `models/yolox_nano.tflite` (2,236,912 bytes, sha256 `3a621c40…970e4`, Apache-2.0; provenance in `models/README.md`).
+- **Diagnostics hook:** `init` accepts `classIds` to override the vehicle classes (used only by the self-test with `person`, because the sample has no vehicles). Product code uses the default `{2,3,5,7}`.
+- **Verification:** 12 TS golden tests, 18 TS wrapper tests, 9 Java unit tests (plus Capacitor's template test), 3 Java mutations caught, on-device self-test (see TESTING_AND_VALIDATION). Not verified: vehicle detection quality, camera input, sustained thermal and CPU contention, memory, behaviour across app pause/resume.
+- **Revisit if:** the bridge cost matters at the full pipeline load, the first-frame slowdown persists in steady use, or Kotlin becomes the project language for the plugin layer.
+
+## D-025 Camera probe results; the in-app detector is limited by idle-gap slowdown, not by the camera, JPEG or overlay
+- **Date:** 2026-10-24 · **Status:** findings measured; the design response below is **proposed and unimplemented**. Refines D-024.
+- **Camera (M5, measured on the OnePlus 6T in the real WebView):** `getUserMedia` 1280×720 @ 15 fps, rear camera, works with only the `CAMERA` manifest permission (first use opens the system dialog; no app code needed). 14.9 raw / 14.8 emitted fps, 1 drop in 10 s. `devicemotion` 57 Hz with rotation and acceleration; screen wake lock works. New code: `capture/webViewCameraSource.ts` (the real `CameraSource`), `capture/cameraHealth.ts` (stall at 1.5 s, denied/error mapping, one restart; 8 unit tests). Manifest: `CAMERA` added (video only, no audio).
+- **Live vehicle detection works:** with the phone filming highway driving footage on a screen, the pipeline drew correct boxes on cars (67 to 145 car detections per 10 s, top scores 0.84 to 0.94). The footage was supplied by the user (a YouTube video, shown on screen, not downloaded; I could not see the screen, so its exact identity is unconfirmed). This is a smoke test, not an accuracy measurement. Observed flaw: per-class NMS lets one vehicle carry a "car" and a "truck" box (e.g. a white SUV: car plus truck 0.58). A class-agnostic final NMS would fix it in `decode.ts`, `YoloxDecoder.java` and the golden fixture together; not done.
+- **Pipeline throughput is below target:** camera + 2-thread detector + JPEG + overlay yields **2.4 to 2.5 detections/s** (target ≥ 3), frame-to-result 375 to 383 ms median (p95 395 to 430). Model run 169 ms, bridge 115 to 121 ms, JS packing 60 to 62 ms.
+- **What it is NOT (ablation + isolation, `results/camera-probe-notes.md`):** not the JPEG encoder or the overlay (throughput unchanged with or without), not the camera frame rate (still 2.4/s at a 5 fps cap), not battery saver. **[Corrected 2026-10-24, D-029: this line also said "not the camera session" and "not heat". The "not heat" claim is WITHDRAWN: it rested on a frequency-cap check taken after the phone had cooled and on a cached `dumpsys` value; live sampling later showed CPU frequency caps and 52 to 56 °C die temperatures during the pipeline. "Not the camera session" is weaker than stated: that experiment ran on an already-hot phone.]**
+- **What it is [explanation under revision, see D-029; the sweep below is real data but its cause is now doubtful]:** an **idle-gap slowdown** on this SoC and Android version. The same native code with no WebView: 61 to 63 ms back-to-back, 78 ms after 40 to 80 ms idle, 155 to 170 ms after 120 ms or more idle (2.5× slower); thread priority did not help; 8 threads were far less affected (60 to 65 ms at every gap tried). A request/response loop (JS pack → bridge → native → bridge) always leaves the native thread idle about 150 ms, which lands in the slow mode, and the JS and bridge work slow down in the same way. The mechanism (placement on little cores / frequency ramp) is **inferred, not proven**.
+- **Design response to try (not built):** (1) a pipelined detector API: JS posts the newest frame without waiting for the previous result, the native thread always takes the latest slot and emits results as events, so it is fed continuously and JS packing overlaps inference (one in flight, latest-frame-wins is unchanged); (2) try 4 and 8 threads again under that pattern; (3) take frame packing off the main thread (binary frames over the planned loopback WebSocket, or native capture with CameraX so no frames cross the bridge at all); (4) move JPEG encoding off the main thread (now 77 to 110 ms median, p95 up to 290 ms, against a budget of about 50 ms; frames are 14 to 24 KB, smaller than the 25 to 45 KB assumed). Re-measure G1 after (1).
+- **Corrections to earlier records:** `dumpsys thermalservice` values are cached and its "soc" sensor is the battery percentage (status 6 = low-battery mitigation), not a heat reading; the idle temperatures I recorded from it on 2026-10-24 were not live. The standalone 4-thread and 8-thread timings vary between runs by up to 2× (34 to 89 ms; 28 to 60 ms), so single numbers for them are not reliable.
+- **Limits of this evidence:** battery at 14 to 15% throughout; each configuration ran 9 to 10 s; one phone; daylight footage on a screen (no low light, no real car motion); detector accuracy not measured.
+- **Revisit if:** the pipelined API does not reach ≥ 3 detections/s with p95 frame-to-result under 400 ms (then native capture via CameraX), or the slowdown disappears on a charged phone (then retest at full battery).
+
+## D-026 Pipelined (streaming) detector API instead of request/response
+- **Date:** 2026-10-24 · **Status:** implemented, unit-tested and **measured on the phone: accepted as the production path** (with the limits below). Implements the design response in D-025; supersedes the request/response path (kept for comparison).
+- **Measured result (live camera, no vehicles in view, 12 s per configuration, `results/camera-probe-notes.md`):** **4.7 to 5.5 detections/s** (serial path: 2.4 to 2.5) and **frame-to-result 267 to 268 ms median, p95 280 to 285 ms** with JPEG and overlay running (serial: about 380 / 395 to 430). Both G1 targets (≥ 3/s, p95 < 400 ms) are met in this run. Throughput is the same at 2, 4 and 8 threads, nothing is replaced natively and native queue time is 0.2 ms: **the native side now waits for frames; the limit has moved to the JavaScript side** (about 55 ms to pack a frame plus posting a 692 KB string, one frame at a time; about 9 camera frames/s are skipped while packing). The model run is 89 ms with 2 threads (63 ms is the hot, back-to-back figure), so the fast mode is only partly sustained. 2 threads stay the default: more threads gave no throughput benefit.
+- **Remaining problems:** JPEG encoding on the main thread got slower while the pipeline runs (129 to 213 ms median, p95 up to 429 ms, 3.6 to 4.2 frames/s; the stream target is 8 to 10 fps), because it competes with packing for the main thread. No vehicles were in view (the phone was held upright, 720×1280), so this run says nothing about detection quality. Single runs, battery 15%.
+- **Next candidates, in order of expected gain:** (a) move JPEG encoding off the main thread (worker with OffscreenCanvas, or native); (b) cut the packing cost: draw straight to a 416 canvas without the full-size intermediate, or send binary frames over the loopback WebSocket instead of base64 through the bridge, or capture natively (CameraX) so frames never cross the bridge; (c) re-measure at full charge and with vehicles in view.
+- **Design:** `startStream()` starts a worker thread on the native side with a one-slot "newest wins" mailbox (`LatestFrameSlot`, pure Java). The WebView posts the newest frame with `submit({rgb, srcW, srcH, seq})` and returns as soon as the native side accepted it; the worker always takes the newest frame, runs the model, and emits one `detection` event (or `detectorError`) per frame. A frame not yet taken is replaced and counted, never queued; one inference in flight; `detect()` is refused while a stream runs (`STREAMING`). On the JS side `StreamingDetector` packs and posts one frame at a time (frames arriving meanwhile are skipped), keeps a bounded table of pending submissions (16), maps result events back by `seq`, and drops stale entries. The goal is to keep the native thread continuously fed so it stays in the fast mode (D-025) and to overlap JS packing with inference.
+- **Also changed:** `LiteRtDetector.infer` is synchronized (shared model/buffers); health bookkeeping moved into one shared `DetectorHealthTracker` used by both detectors (the 18 existing tests still pass).
+- **Verification so far:** 7 Java tests for the slot (replacement, blocking take, close, concurrency), 15 TS tests for `StreamingDetector` with a fake plugin (timing maths, backpressure skip, native replacement counting, stray/late events, bounded pending table, vehicle-class mapping, malformed results, error recovery, slow health, dispose). Not yet measured on the phone: throughput, latency, whether the fast mode is actually sustained, behaviour of event delivery under load.
+- **Caveats to watch:** results are events through the Capacitor bridge, and event delivery shares the JS main thread with packing and drawing; `seq` comparison ignores uint32 wrap; if packing on the JS main thread (about 36 to 60 ms) stays the bottleneck, the next step is binary frames over the loopback WebSocket or native capture.
+
+## D-027 JPEG encoding in a Worker; frame packing is the next main-thread bottleneck
+- **Date:** 2026-10-24 · **Status:** JPEG-off-the-main-thread accepted (measured, `results/camera-probe-notes.md`); implementation superseded by the combined worker in D-028. Follows D-026. Its reading of the slow model mode as the "idle-gap effect" is superseded by D-029 (thermal).
+- **Built:** `src/stream/jpegEncoder.ts` (`JpegEncoder`, main-thread client) and `jpegWorker.ts` (draw to `OffscreenCanvas`, `convertToBlob` JPEG, return the bytes). The bitmap is **transferred** to the worker (no pixel copy, the worker closes it); one encode in flight at a time; if busy, `encode()` returns `null` and the caller keeps ownership; a 5 s watchdog kills a silent worker and starts a fresh one; worker errors and dispose reject the in-flight encode; late answers from a killed worker are ignored. 9 unit tests with a fake worker. Contract pinned by a test: `StreamingDetector.submit` reads the bitmap synchronously before its first await, so the caller can transfer the bitmap right after calling it.
+- **Measured (OnePlus 6T, live camera, no vehicles in view, 640×360 q0.6):** worker **9.1 frames/s, 40 ms median round trip (p95 about 100 ms; 35 ms inside the worker)**, no errors, against the main thread's 2.9 to 4.1 frames/s at 133 to 223 ms median (p95 437 to 707 ms). That meets the 8 to 10 fps stream target for the encoder. Sizes 14 to 24 KB per frame.
+- **Not improved:** detection throughput (4.8 to 4.9/s with the worker, 4.7/s with no JPEG at all) and main-thread responsiveness. In every configuration, even detect-only, the main thread is blocked 60 to 90 ms about once per posted frame (66 timer lags over 50 ms in 12 s at 5.5 posts/s). That is **frame packing** (draw to a 416 canvas, `getImageData`, RGBA to RGB, base64) running synchronously on the main thread. The feed rate of about 5 frames/s also leaves idle gaps that push the model into its slow mode (165 ms vs 91 ms) in the later windows, with no JPEG involved (D-025).
+- **Proposed next step:** do the packing in a worker too (transfer the bitmap once; the worker returns the base64 RGB string, and also the JPEG if wanted); the main thread then only calls `plugin.submit` with a ready string (Capacitor plugin calls must come from the main thread). Expected effect, **unmeasured**: main thread mostly free, feed rate above about 10 frames/s so the native thread stays in the fast mode. Alternatives if that is not enough: binary frames over the loopback WebSocket, or native capture (CameraX).
+- **Limits of the evidence:** single run of six windows; battery 18%; phone held upright (720×1280) so the probe's fixed 640×360 JPEG distorts the aspect ratio (the real device is mounted landscape; the encoder must keep the aspect ratio); no vehicles in view.
+- **Revisit if:** packing in a worker does not reduce the main-thread lag or raise the feed rate.
+
+## D-028 Frame packing and JPEG in one worker (FrameProcessor); main thread only posts
+- **Date:** 2026-10-24 · **Status:** implemented, unit-tested, measured; accepted. Supersedes the JPEG-only worker implementation of D-027 (the decision to encode off the main thread stands; `jpegEncoder.ts`/`jpegWorker.ts` were removed and their tests ported).
+- **Built:** `src/stream/frameProcessor.ts` (client) + `frameWorker.ts` (worker): one worker takes ownership of the transferred bitmap, **packs** it (letterbox to 416×416 via the shared `LetterboxRasterizer`, drop alpha, base64) and posts that string back at once, then optionally **JPEG-encodes** the same bitmap and posts the bytes. One job in flight, 5 s watchdog, stage-level errors, late answers ignored, bitmap ownership rules unchanged. `StreamingDetector.submitPacked()` posts a ready string (main thread only does the plugin call) and measures the submit acknowledgement time. `canvasRasterize` now reuses `LetterboxRasterizer` so main thread and worker produce identical input. 13 + 3 + 4 new unit tests.
+- **Measured (OnePlus 6T, live camera, 2 threads, `results/camera-probe-notes.md`):** main-thread lag p95 **58 to 67 ms → 5 to 8 ms**, worst stall 73 to 160 ms → 15 to 32 ms, stalls over 50 ms per 12 s window **53 to 61 → 0**. The main thread is now free for the UI and camera callbacks.
+- **Not improved:** detection throughput (about 5/s in both). The feed is a serial chain: pack (35 to 55 ms) → post (the plugin call is acknowledged after **74 to 115 ms**, mostly moving the 692 KB base64 string through the Capacitor bridge) → wait for the next camera frame. Pack time is no shorter in the worker. Sharing one worker for pack and then JPEG lowered the JPEG rate to 4.7/s (about 100 ms round trip) because the JPEG job starts only after the pack; with packing on the main thread and JPEG alone in the worker it was 9.6/s.
+- **Proposed next steps (unmeasured):** (1) overlap the stages: pack frame N+1 while frame N is being posted (a two-slot hand-over), or use two workers (pack, JPEG) so JPEG never delays packing; (2) shrink the bridge payload (the 692 KB string dominates the acknowledgement): send the 416 frame as a small JPEG and decode natively, or move frames off the Capacitor JSON bridge entirely (binary over the loopback WebSocket, already planned for the ingest socket, or native capture with CameraX); (3) fix the thermal throttling first (D-029), because it multiplies every number by about 1.5 to 1.8.
+
+## D-029 Sustained camera + inference pipeline triggers thermal mitigation; this was misdiagnosed before
+- **Date:** 2026-10-24 · **Status:** measured correlation; mechanism not identified; **corrects D-025** ("not heat") and the thermal notes in `DEVICE_COMPATIBILITY.md`.
+- **Measured (sysfs sampled live every 4 to 7 s while the pipeline ran, then after it ended):** while the camera pipeline runs, the CPU die is at 52 to 56 °C and the OS holds the CPU **frequency caps** down: little cores 1324 MHz (hardware 1766), big cores 1459 MHz and later 2323 MHz (hardware 2803). In every sample the **big cores sat idle at their 825 MHz minimum while the little cores ran at their capped maximum**: the work was being kept on the efficiency cores. When the probe ended and the die fell to 49 then 45 °C the caps lifted (1766 / 2323, then 2803 about 40 s later). Back-to-back runs inherit the heat: a run started 5 minutes after the previous one was slow from its first window (CPU die already 53 to 54 °C), while the first run after a cool-down was fast for about 30 s (7.4 detections/s, model 92 ms) then stepped to slow (4.8/s, 165 ms) and stayed there. In the slow state every stage is 1.5 to 1.8× slower at once (model 92 → 165 ms, pack 36 → 55 ms, bridge acknowledgement 74 → 115 ms), which a single CPU-wide cap explains and a bridge or idle-gap effect does not.
+- **Cool-start run A (2026-10-24, 63% battery on USB, die about 41 to 43 °C at launch; `tools/device/thermal-run.sh`, `results/thermal/`) refines this into two steps:** (1) **within 4 s** of the pipeline starting the die jumps to 51 then 56 °C and the frequency caps are applied (little 1324, big 1459 MHz); the big cores then do the work at their capped 1459 MHz and the pipeline is fast for about 118 s: **6.9 to 7.4 detections/s, model 89 ms, pack 31 to 36 ms, submit acknowledgement 72 to 75 ms, frame→result 234 to 242 ms median (p95 249 to 295)**. (2) At about 118 s the **big cores go idle (825 MHz) and the work runs on the little cores with the caps unchanged**, while the die is still 55 to 57 °C and then falls to 52 to 53 °C: **4.7 to 5.3/s, model 163 to 169 ms, pack 51 to 53, ack 110 to 118, frame→result 365 to 377 ms (p95 399 to 446)**. A re-init does not restore the fast mode; the caps lift and the die cools to 42 °C within about 30 s of the load ending. So the onset of the slow mode depends on the starting heat (about 118 s from a cool start, about 30 s in the first drift run, immediately from a hot start), and the caps alone are not the cause of the step. Battery temperature stayed 32 to 35 °C and `xo-therm` 37 to 44 °C: the heat that triggers this is the CPU die, produced by the load within seconds. Screen, charging and camera ISP contributions are still **not separated**.
+- **What is not known:** which kernel/thermal-engine rule sets the caps and moves work off the big cores (most cooling devices are unreadable from the shell); how much of the heat comes from the load itself, the display, the camera ISP, or **USB charging** (all runs were on USB at 15 to 18% battery); whether it behaves the same at full charge or unplugged; how fast it cools in a car. The earlier "idle-gap" measurements on the standalone bench (`--ei gapms`, D-025) were run in increasing-gap order on a warming phone and are **not reconciled** with this; treat the idle-gap explanation as unproven, not as refuted.
+- **Paced run Q (2026-10-24, 63% battery on USB, start die 38 °C, feed capped at 4 frames/s; `results/thermal/Q-paced-4ps-63pct-plugged.*`) did NOT avoid the slow mode.** Detections ran at 3.5 to 3.8/s (the pacing limit). **Fast phase about 91 s** (windows Q01 to Q08: model 90 to 92 ms, pack 39 to 44 ms, ack 76 to 87 ms, frame→result 222 to 236 ms median, p95 235 to 261), then the **same step** (Q09 on: model 166 to 171 ms, pack 47 to 53 ms, ack 112 to 118 ms, frame→result 353 to 425 ms median, p95 437 to 450 ms), big cores idle at 825 MHz from t = 91 s, caps on from the first sample, recovery within 10 s of the load ending. The CPU die was lower than unpaced (50 to 52 °C against 55 to 57 °C) and the step came **earlier** (about 91 s against about 118 s; the first drift run: about 30 s). So the step is **not driven by the detection duty cycle or by the CPU die reaching a threshold**; the trigger is unknown. Candidates, none tested: elapsed time or heat accumulated since the camera session/app started (a skin or board sensor such as `xo-therm`, which read 43 to 44 °C at the step in both runs), the camera session itself, or an OEM rule that keeps big cores only for a boost window. Pacing is therefore **not** a fix on its own; in the slow state the p95 frame→result is 437 to 450 ms even at 3.6/s, so the 400 ms p95 target is missed.
+- **Next experiments (separate the trigger):** (a) the detector looping on a fixed image for 4 minutes with NO camera, paced, cool start; (b) the camera open for 4 minutes with NO detector (probe a fixed CPU workload periodically to see if the big cores are still usable); (c) minimum brightness; (d) unplugged. The practical fix path regardless: shorten the chain that is slow in the slow mode, mainly the bridge hand-over (ack 112 to 118 ms) by sending a much smaller payload.
+- **Earlier proposed paced run (now done, see above):** a **paced** run: cap the feed at about 3 to 4 frames/s so the average CPU load is a fraction of flat-out, and see whether the big cores stay in use and the 118 s step never comes. If so, pacing gives both lower latency (about 240 ms against 373 ms in the slow mode) and less heat, and the 3 to 5/s that the trend heuristic needs is enough. Also worth a run: minimum screen brightness, and wireless-adb unplugged.
+- **Consequences for the design (proposed):** this is exactly the DP5 degradation case (`IMPLEMENTATION_PLAN.md`). A thermally aware pipeline should (a) read live temperatures and CPU caps (sysfs is readable from the app process only if SELinux allows; test) or infer slowdown from its own latency, never from `dumpsys thermalservice` (cached); (b) reduce the load before the cap hits: lower the detection rate (a steady 3 to 5 per second is enough for a trend heuristic), lower camera resolution/fps, dim the display, stop JPEG streaming when no viewer is connected; (c) report `health.thermal` honestly (`warm`/`hot`) and show it to the driver; (d) plan for cooling and a power bank in the real mounting (G4). The G1 targets must be demonstrated **in the thermally limited state**, not only in the first 30 s.
+- **Revisit if:** a run at full charge, unplugged, with the screen dimmed and a cooled start behaves differently (that would separate heat sources), or the caps can be shown to come from something other than temperature.
+
+## D-030 Compact JPEG frame payload across the bridge (default) and an overlapped feeder (not needed)
+- **Date:** 2026-10-24 · **Status:** JPEG payload implemented, tested and **measured in the slow state: accepted as the default**; the overlapped feeder is implemented and tested but **measured as not beneficial**. Follows D-028/D-029.
+- **What changed:** the frame worker can return the letterboxed 416×416 frame as a **JPEG** (`packFormat: 'jpeg'`, quality 0.9) instead of 519,168 raw RGB bytes. Native decodes it with `BitmapFactory` (`NativeDetectorPlugin.decodePayload`, `Preprocess.argbToBgrFloat`, `LiteRtDetector.inferPixels`); `submit`/`detect` take `format: 'rgb' | 'jpeg'` (default `rgb`); a wrongly sized or undecodable payload is rejected as `BAD_FRAME`. `FrameFeeder` (`src/stream/frameFeeder.ts`) packs frame N+1 while frame N is being posted, with at most one frame packing, one posting and one waiting (newest wins); it owns the bitmaps it is given. Defaults: `FrameFeeder` uses JPEG q0.9. Tests: Java 19 (2 new for the pixel conversion), TS 198 (9 feeder tests, JPEG output of the rasteriser, format through the processor).
+- **Cost on the model input (sample image with three known persons, on the phone, `detectorSelfTest` FORMAT):** raw payload 676 KB base64; JPEG q0.95 73 KB, **q0.90 53 KB (12.8× smaller)**, q0.80 38 KB, q0.70 30 KB. Native decode about 3.4 to 4.7 ms (15.6 ms on the first call). Box centres move at most 0.003 in every case; **scores move by up to 0.04 to 0.05 at q0.95 and q0.90, 0.12 at q0.80, and the lowest-scoring detection (0.37, just above the 0.35 threshold) was lost at q0.80 and q0.70**. So q0.90 is the default; a detection right at the threshold can flip. Evidence is one image with three persons; **no vehicle accuracy comparison was possible** (no vehicles were in view during the pipeline runs).
+- **Measured in the verified slow state** (model 162 to 167 ms, big cores idle, caps on; phone started hot at 58 °C so the slow state was present from about 40 s; run S, `results/thermal/S-slowab-63pct-plugged.*`; windows alternated A B C D C B A):
+
+  | config | detections/s | submit ack ms | frame→result median / p95 ms | main lag p95 ms | feeder frames offered → posted |
+  | --- | --- | --- | --- | --- | --- |
+  | A serial, RGB (A2 repeat) | 4.9 (4.9) | 117 (115) | 377 / 427 (379 / 421) | 5.9 (6.0) | n/a |
+  | B overlapped, RGB (B2) | 5.3 (5.4) | 127 (129) | **524 / 628 (525 / 645)** | 14.6 (15.6) | 179 → 136 (185 → 135) |
+  | **C overlapped, JPEG (C2)** | **5.6 (5.6)** | **10.8 (10.4)** | **261 / 297 (261 / 295)** | **1.6 (1.6)** | 261 → 256 (266 → 264) |
+  | **D serial, JPEG** | **5.7** | **10.9** | **263 / 313** | **1.5** | n/a |
+
+- **Verdict:** (1) the **JPEG payload is the fix for the slow-state latency**: the bridge acknowledgement falls from about 116 ms to about 11 ms, frame→result from about 377 to about 262 ms median and **p95 from about 425 to 295 to 313 ms, meeting the 400 ms p95 target in the slow state**, throughput from 4.9 to 5.6/s. (2) The **overlap gives nothing once the post is short** (C ≈ D) and **hurts with raw RGB** (B: +150 ms latency, because a packed frame waits behind a slow post and 3 to 6 frames per window are replaced). (3) The pipeline is now **bound by the model**: 163 ms per frame in the slow state is a ceiling of about 6 detections/s, and 5.6/s is what we get. The simple serial feed is therefore the recommended structure; keep `FrameFeeder` available but do not make it the default path without a new measurement.
+- **Vehicle-in-view comparison (2026-10-24, `VITE_SELFTEST=jpegcmp`, `results/thermal/V-jpegcmp-vehicles.*`):** highway footage shown on a screen (identity of the exact video unconfirmed) and filmed by the phone; **112 frames, 101 with at least one detection, no errors**. Each frame was letterboxed once and sent to the detector as raw RGB and as JPEG; the native score floor was lowered to 0.2 so crossings of the 0.35 decision threshold are visible. Matching by class and IoU ≥ 0.5, raw as the reference (not ground truth: neither path is labelled data). Raw kept detections: 418 (car 358, truck 53, bus 7), of which **101 (24%) scored within 0.10 above the threshold**.
+
+  | JPEG quality | median payload (raw: 676 KB) | matched and kept | lost below threshold | lost outright | pushed over threshold | new | frames with identical kept set | mean / p95 / max score change | mean / min IoU |
+  | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+  | 0.95 | 50.6 KB | 398 / 418 (95.2%) | 19 | 1 | 24 | 2 | 75 / 112 | 0.022 / 0.065 / 0.143 | 0.949 / 0.554 |
+  | **0.90** | **33.3 KB** | **394 / 418 (94.3%)** | **23 (5.5%)** | **1 (0.2%)** | **25** | **6 (1.4%)** | **73 / 112 (65%)** | **0.030 / 0.094 / 0.179** | **0.940 / 0.517** |
+  | 0.80 | 21.5 KB | 384 / 418 (91.9%) | 32 | 2 | 21 | 11 | 66 / 112 | 0.044 / 0.123 / 0.247 | 0.917 / 0.508 |
+
+  **Reading:** at q0.90 the differences are almost entirely **threshold flips on borderline detections**, roughly symmetric (23 lost, 31 gained) with a net +7 (+1.7%) kept detections; outright misses are 1 of 418, and the strong detections are stable. The kept set differs in 35% of frames, but only by borderline boxes. Boxes move little (mean IoU 0.94, worst 0.52). q0.95 flips about 12% fewer detections for 52% more payload (the 11 ms acknowledgement would grow slightly); q0.80 is visibly worse. **Decision: keep q0.90.** **Design consequence:** nothing downstream may act on a single near-threshold detection; the tracker's confirmation (3 consecutive hits), the approach estimator's window and the alert hysteresis are what absorb these flips. **Not established:** whether the extra box jitter (IoU 0.94) adds noise to the box-height growth used by the approach estimate (needs a replay comparison on recorded detections); how this compares with the natural frame-to-frame variation of the raw path; and whether either path is *correct* (no labels). The run started at die 42 °C and was in the slow thermal state from about 23 s.
+- **Not covered:** the fast state with JPEG, full charge or unplugged, runs longer than about 4.5 minutes, release builds. The model run itself (163 ms in the slow state) is now the limit; options are fewer pixels per frame, a lighter model, a native GPU path (untested; `litert-gpu` not downloaded), or accepting about 5 to 6/s.
+- **Revisit if:** a vehicle-in-view comparison shows JPEG q0.90 changes which vehicles are detected, or detection scores near the threshold matter for the alert logic (then raise the quality or use RGB for the final decision).
+
+## D-019 Reference TypeScript implementation of server logic, and replay location
+- **Date:** 2026-10-23 · **Status:** proposed
+- **Decision:** the protocol logic that does not need sockets (frame codec, message validation, tokens, rate limits, handshake decision, per-viewer relay buffer) is implemented and tested in TypeScript under `app/src/stream` and `app/src/server` as the executable reference for the Kotlin `LocalServer` plugin, which must reproduce the same behaviour. The replay harness core lives in `app/src/replay` (importable by tests and the build); the plan's `tools/replay/` is reserved for a future CLI wrapper.
+- **Trade-off:** the logic exists twice (TS reference, Kotlin implementation) until the Kotlin plugin is built; mitigated by porting the TS test vectors to Kotlin tests.
+- **Not decided here:** Ktor vs NanoHTTPD (DP3).
+
+## D-031 Product pipeline with latency-driven load controller and inferred thermal health
+- **Date:** 2026-10-24 · **Status:** accepted (device-tested once, 170 s)
+- **Decision:** `RearViewPipeline` (`app/src/pipeline/pipeline.ts`) wires camera → worker JPEG pack (q0.90) → streaming detector → `IouTracker` → `ApproachEstimator` → `AlertStateMachine`, all collaborators injected. Alerts are computed only from fresh results; a 500 ms timer re-reads health, and if the camera or detector is not ok (or results stop for 2 s), tracks are dropped and the alert is UNAVAILABLE. `HealthMonitor` supplies `HealthFlags`; `health.thermal` is **inferred** by `ThermalEstimator` from model-time slowdown (ratio to a 90 ms reference or a learned faster baseline, with hysteresis), never a temperature. `LoadController` sets the minimum frame gap: raises it when latency p95 exceeds 400 ms, lowers it after 10 s under 280 ms, and caps the feed at 6/s (warm) or 4/s (hot); never slower than 3/s. UI wording (`ui/statusText.ts`): NORMAL = "No tracked vehicle"; a test forbids "clear"/"safe".
+- **Evidence:** see TESTING_AND_VALIDATION W-product-pipeline. Pacing did not prevent the thermal step (consistent with D-029); the controller's measured effect is lower latency, not lower heat.
+- **Limits:** thresholds are first guesses; the thermal estimate can be wrong in either direction; no ground truth for alerts.
+
+## D-032 Viewer server: self-written Java HTTP + WebSocket, rear app publishes through plugin calls
+- **Date:** 2026-10-24 · **Status:** accepted (device-tested with a desktop browser; iPhone Safari NOT yet tested)
+- **Decision (settles DP3):** no server library. `app/android/.../server` implements the viewer listener with plain sockets: HTTP GET (viewer page, `/healthz`, assets under `assets/` only), RFC 6455 WebSocket server side (masked client frames, no fragmentation, bounded sizes), `MiniJson` for inbound messages, token auth (16 random bytes, base64url, constant-time compare, 12 h expiry, revoke), Origin check, per-IP lockout (5 failures/60 s) and connect limit (10/min), 2 viewers, 20 msgs/s, per-viewer writer thread with a one-slot newest-frame buffer and an ack credit of 2 (4440 after 5 s without acks), 1 Hz `status`. It binds one hotspot/Wi-Fi IPv4 address (names wlan*/ap*/swlan*/softap*/eth*; never cellular).
+- **Supersedes part of PROTOCOL_SPEC §1/§4:** there is **no ingest listener and no ingest token**. The rear WebView calls `LocalServer.publishFrame({seq, meta, jpeg})` and `publishRearStatus({json})` through the Capacitor bridge, so no loopback socket exists for other apps to reach. `status` carries the rear fields nested as `rear` (null if not received for 2 s); `ingest` is "connected" if a frame arrived in the last 2 s. The viewer-side protocol (hello/welcome/ack/ping, RVF1 frames, close codes) is unchanged.
+- **Video rate:** the stream JPEG (640 wide, q0.6) is produced in the same worker job as the detector pack, so video runs at the detection feed rate (3.5-6 per second), not the 8-10 the spec hoped for. It is only encoded while a viewer is connected.
+- **Why not Ktor/NanoHTTPD:** a dependency download needing approval, for a surface this small; the hand-written code is covered by 26 JUnit tests over real loopback sockets. **Risk:** hand-rolled protocol code needs review before use beyond personal testing.
+- **Not done:** QR code (the rear screen shows the link as text), HTTPS, keeping the server alive when the app is backgrounded (the camera stops there anyway).
+
+## D-033 Active cooling removes the slow state in the measured runs
+- **Date:** 2026-10-24 · **Status:** accepted as an observation; the mechanism is still not identified
+- **Observation:** with a cooler attached (type UNKNOWN), the OnePlus 6T held the fast model time (about 100 ms) for 185 s from a cool start and for 450 s from a hot start (die 54 C), with the full 8/s feed. Without it the model stepped to 163-174 ms within 30-118 s every time (D-029, W run). Frequency caps and CPU die temperature looked the same in sysfs, so the slow state is not simply "die hot": something that cooling affects (skin or battery temperature, which stayed 28-29 C vs 35-37 C, or a body-temperature governor) triggers it. This answers the earlier cooler question (D-029 open item): it helps, on this evidence.
+- **Consequences:** recommend active cooling for in-car use (and shade, no case); keep the thermal estimator and load controller as the safety net, because a cooler can fail or the cabin can be hotter than the test room. The estimator reported "ok" with the cooler and "hot" without it, so it tracks the effect.
+- **Limits:** two cooler runs, one device, a room not a hot car, USB power, 7.5 minutes at most, no viewer attached. Revisit with: a 20-30 minute run, a viewer attached, cabin-like heat, cooler off in the same session to confirm the difference.
+
+## D-034 Rear-screen QR code from a self-written encoder
+- **Date:** 2026-10-24 · **Status:** accepted; scanned successfully once by an iPhone camera
+- **Decision:** `app/src/ui/qr.ts` encodes the viewer link (byte mode, level M, versions 1-6, mask chosen by penalty score) and the rear screen draws it black on white with a 4-module quiet zone. No QR library was added (no download). The text link stays on screen as a fallback.
+- **Limits:** versions 1-6 only (at most 134 bytes at level L); not a general encoder. Verified against the standard's format-bit table and its Reed-Solomon worked example, plus one real scan; no automated decode test exists.

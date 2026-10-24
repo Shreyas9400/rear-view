@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="referrer" content="no-referrer" />
+  <title>Rear view</title>
+  <style>
+    html, body { margin: 0; background: #111; color: #eee; font-family: -apple-system, system-ui, sans-serif; }
+    #stage { padding: 8px; }
+    #headline { font-size: 22px; font-weight: 700; padding: 10px 12px; border-radius: 8px; background: #2b3a2f; }
+    #stage[data-level="VEHICLE_NEARBY"] #headline { background: #1f3b5c; }
+    #stage[data-level="POSSIBLE_APPROACH"] #headline { background: #8a2b1a; }
+    #stage[data-level="UNAVAILABLE"] #headline, #stage[data-state="STALE"] #headline, #stage[data-state="DISCONNECTED"] #headline,
+    #stage[data-state="INVALID_SESSION"] #headline { background: #555; }
+    #banner { min-height: 22px; font-weight: 700; color: #ffb4a8; padding: 4px 2px; }
+    #detail { font-size: 13px; opacity: .85; min-height: 16px; }
+    #video { width: 100%; background: #000; border-radius: 6px; display: block; }
+    #stage[data-state="STALE"] #video, #stage[data-state="DISCONNECTED"] #video, #stage[data-state="INVALID_SESSION"] #video { opacity: .35; }
+    #stats { font-size: 12px; white-space: pre-wrap; margin: 6px 0; font-family: ui-monospace, Menlo, monospace; }
+    #note { font-size: 12px; opacity: .8; }
+    button { font-size: 16px; padding: 10px 18px; border-radius: 6px; margin: 6px 0; }
+  </style>
+</head>
+<body>
+  <div id="stage" data-state="DISCONNECTED" data-level="UNAVAILABLE">
+    <div id="headline">DETECTION UNAVAILABLE</div>
+    <div id="banner"></div>
+    <canvas id="video" width="640" height="360"></canvas>
+    <div id="detail"></div>
+    <pre id="stats"></pre>
+    <button id="audio" type="button">Enable sound</button>
+    <div id="note">Experimental research prototype - not a safety system. No warning does not mean the road is clear.</div>
+  </div>
+  <script type="module" src="/src/viewer/main.ts"></script>
+</body>
+</html>

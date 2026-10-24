@@ -1,0 +1,17 @@
+node_modules/
+app/dist/
+app/android/app/build/
+app/android/build/
+app/android/.gradle/
+app/android/local.properties
+app/android/capacitor-cordova-android-plugins/
+app/android/app/src/main/assets/public/
+app/android/app/src/main/assets/capacitor.config.json
+app/android/app/src/main/assets/capacitor.plugins.json
+app/experiments/e1-litert/dist/
+app/experiments/e1-litert/models/
+app/experiments/e1-litert/public/
+*.log
+.DS_Store
+app/android/app/src/debug/assets/
+app/src/selftest/sample.png
