@@ -64,3 +64,27 @@ export function levelText(level: string): string {
       return 'DETECTION UNAVAILABLE';
   }
 }
+
+/** Box heights (fraction of the frame height) that map to the slowest and the fastest beeping. */
+export const BEEP = { farH: 0.08, nearH: 0.45, slowMs: 1500, fastMs: 100 } as const;
+
+/**
+ * Gap between beeps for the nearest tracked vehicle, from the height of its box. This is a PROXY for closeness (a bigger box
+ * means a closer or a larger vehicle), not a measured distance: far or small -> long gaps, close or large -> near-continuous.
+ * Unknown height (null) gives a middle value.
+ */
+export function beepIntervalMs(boxH: number | null): number {
+  if (boxH === null || !Number.isFinite(boxH)) return 600;
+  const p = Math.min(1, Math.max(0, (boxH - BEEP.farH) / (BEEP.nearH - BEEP.farH)));
+  return Math.round(BEEP.fastMs + (BEEP.slowMs - BEEP.fastMs) * Math.pow(1 - p, 1.5));
+}
+
+/** Length of one beep: half the gap, between 40 and 140 ms, so the fastest rate sounds almost continuous. */
+export const beepLengthMs = (intervalMs: number): number => Math.round(Math.min(140, Math.max(40, intervalMs * 0.6)));
+
+/** Height of the largest confirmed track (the nearest-looking vehicle), or null if there is none. */
+export function nearestBoxH(tracks: { state: string; box: { h: number } }[]): number | null {
+  let best: number | null = null;
+  for (const t of tracks) if (t.state === 'confirmed' && (best === null || t.box.h > best)) best = t.box.h;
+  return best;
+}

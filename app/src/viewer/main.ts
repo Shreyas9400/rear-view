@@ -4,8 +4,8 @@
 
 import { decodeFrame } from '../stream/frameCodec';
 import type { FrameMeta, HealthFlags } from '../shared/types';
-import { classifyViewer, shouldPlayApproachCue, type ViewerFacts, type ViewerView } from './viewerState';
-import { ClockOffset, frameAgeMs, levelText, reconnectDelayMs, shouldReconnect, tokenFromHash } from './viewerLogic';
+import { classifyViewer, type ViewerFacts, type ViewerView } from './viewerState';
+import { beepIntervalMs, beepLengthMs, ClockOffset, frameAgeMs, levelText, nearestBoxH, reconnectDelayMs, shouldReconnect, tokenFromHash } from './viewerLogic';
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 const els = {
@@ -201,11 +201,35 @@ function tone(freq: number, ms: number): void {
   if (!audioCtx) return;
   const o = audioCtx.createOscillator();
   const g = audioCtx.createGain();
+  const t0 = audioCtx.currentTime;
+  const end = t0 + ms / 1000;
   o.frequency.value = freq;
-  g.gain.value = 0.2;
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.linearRampToValueAtTime(0.25, t0 + 0.006);
+  g.gain.setValueAtTime(0.25, Math.max(t0 + 0.006, end - 0.01));
+  g.gain.linearRampToValueAtTime(0.0001, end);
   o.connect(g).connect(audioCtx.destination);
-  o.start();
-  o.stop(audioCtx.currentTime + ms / 1000);
+  o.start(t0);
+  o.stop(end + 0.01);
+}
+
+/**
+ * Proximity beeping: while the feed is LIVE and the level is POSSIBLE_APPROACH, beep repeatedly; the gap shrinks as the nearest
+ * tracked box grows (a proxy for closeness, not a distance). Silent in every other state, including DELAYED and STALE.
+ */
+let nextBeepAt = 0;
+function beepTick(): void {
+  const v = prevView;
+  const m = newestMeta;
+  if (!audioCtx || !v || !v.audioCueAllowed || v.alertLevel !== 'POSSIBLE_APPROACH' || !m) {
+    nextBeepAt = 0;
+    return;
+  }
+  const now = performance.now();
+  if (now < nextBeepAt) return;
+  const gap = beepIntervalMs(nearestBoxH(m.tracks));
+  tone(880, beepLengthMs(gap));
+  nextBeepAt = now + gap;
 }
 
 els.audio.onclick = () => {
@@ -247,14 +271,11 @@ function render(): void {
   els.stage.dataset.level = v.alertLevel;
   const r = rear && now - rearAt < 3000 ? rear : null;
   els.stats.textContent = [
-    `State: ${v.state}`,
-    f.frameAgeMs === null ? 'Frame age: -' : `Frame age: ${Math.round(f.frameAgeMs)} ms`,
+    `State: ${v.state}  Frame age: ${f.frameAgeMs === null ? '-' : Math.round(f.frameAgeMs) + ' ms'}  Frames: ${framesDrawn}`,
     r ? `Detections/s: ${r.inferFps ?? '-'}  Camera fps: ${r.captureFps ?? '-'}  Latency p95: ${r.inferP95Ms ?? '-'} ms` : 'Rear status: -',
-    `Frames shown: ${framesDrawn}`,
   ].join('\n');
   els.detail.textContent = newestMeta && (v.state === 'LIVE' || v.state === 'DELAYED') ? newestMeta.alert.reasons.join('; ') : '';
 
-  if (prevView && shouldPlayApproachCue(prevView, v)) tone(880, 400);
   if (prevState && prevState !== v.state && (v.state === 'STALE' || v.state === 'DISCONNECTED' || v.state === 'DETECTOR_UNAVAILABLE')) tone(300, 500);
   prevView = v;
   prevState = v.state;
@@ -267,6 +288,7 @@ function render(): void {
 window.addEventListener('hashchange', () => location.reload());
 if (token) connect();
 window.setInterval(render, 250);
+window.setInterval(beepTick, 30);
 window.setInterval(sendPing, 2000);
 render();
 void reconnectTimer;

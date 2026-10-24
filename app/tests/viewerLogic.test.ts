@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ClockOffset, frameAgeMs, levelText, reconnectDelayMs, shouldReconnect, tokenFromHash } from '../src/viewer/viewerLogic';
+import { beepIntervalMs, beepLengthMs, ClockOffset, frameAgeMs, levelText, nearestBoxH, reconnectDelayMs, shouldReconnect, tokenFromHash } from '../src/viewer/viewerLogic';
 
 describe('tokenFromHash', () => {
   it('reads a base64url token from the fragment', () => {
@@ -62,5 +62,36 @@ describe('reconnect policy and wording', () => {
     for (const l of ['NORMAL', 'VEHICLE_NEARBY', 'POSSIBLE_APPROACH', 'UNAVAILABLE', 'x']) expect(levelText(l).toLowerCase()).not.toMatch(/clear|safe/);
     expect(levelText('NORMAL')).toBe('No tracked vehicle');
     expect(levelText('whatever')).toBe('DETECTION UNAVAILABLE');
+  });
+});
+
+describe('proximity beeping', () => {
+  it('beeps slowly for small boxes and almost continuously for large ones, never faster than the floor', () => {
+    expect(beepIntervalMs(0.02)).toBe(1500);
+    expect(beepIntervalMs(0.08)).toBe(1500);
+    expect(beepIntervalMs(0.45)).toBe(100);
+    expect(beepIntervalMs(0.9)).toBe(100);
+    expect(beepIntervalMs(null)).toBe(600);
+    expect(beepIntervalMs(NaN)).toBe(600);
+  });
+  it('gets steadily faster as the box grows', () => {
+    let prev = Infinity;
+    for (let h = 0.05; h <= 0.5; h += 0.02) {
+      const v = beepIntervalMs(h);
+      expect(v).toBeLessThanOrEqual(prev);
+      prev = v;
+    }
+    expect(beepIntervalMs(0.2)).toBeLessThan(beepIntervalMs(0.12));
+  });
+  it('keeps each beep shorter than the gap so beeps stay separate', () => {
+    for (const gap of [100, 300, 800, 1500]) expect(beepLengthMs(gap)).toBeLessThan(gap);
+    expect(beepLengthMs(100)).toBe(60);
+    expect(beepLengthMs(1500)).toBe(140);
+  });
+  it('uses the largest confirmed track only', () => {
+    const t = (state: string, h: number) => ({ state, box: { h } });
+    expect(nearestBoxH([t('confirmed', 0.1), t('confirmed', 0.3), t('tentative', 0.6), t('lost', 0.9)])).toBe(0.3);
+    expect(nearestBoxH([t('tentative', 0.6)])).toBeNull();
+    expect(nearestBoxH([])).toBeNull();
   });
 });

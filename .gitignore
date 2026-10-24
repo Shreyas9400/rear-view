@@ -15,3 +15,5 @@ app/experiments/e1-litert/public/
 .DS_Store
 app/android/app/src/debug/assets/
 app/src/selftest/sample.png
+
+release/

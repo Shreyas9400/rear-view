@@ -13,17 +13,41 @@ const wakeLockApi = () => (navigator as unknown as { wakeLock?: { request(t: str
 
 export function mountRearScreen(root: HTMLElement): void {
   root.innerHTML = '';
-  root.style.cssText = 'font-family:sans-serif;background:#111;color:#eee;min-height:100vh;margin:0;padding:8px;box-sizing:border-box';
+  root.style.cssText = 'font-family:sans-serif;background:#111;color:#eee;margin:0;padding:0';
+  // One window without scrolling the video away: status bar and video share the main column and the video takes the space that
+  // is left (aspect ratio kept); buttons, viewer link, QR and numbers sit in a side panel (landscape) or a strip below
+  // (portrait) that scrolls on its own if it is too tall.
+  const style = document.createElement('style');
+  style.textContent = `
+    .rv { box-sizing: border-box; height: 100vh; height: 100dvh; display: grid; gap: 8px; padding: 8px; grid-template-rows: minmax(0, 1fr) auto; }
+    .rv-main { min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+    .rv-head { flex: none; padding: 8px 12px; border-radius: 8px; font-size: clamp(16px, 4.5vmin, 24px); font-weight: bold; }
+    .rv-detail { flex: none; font-size: 12px; opacity: .85; min-height: 14px; }
+    .rv-video { flex: 1 1 0; min-height: 0; display: flex; align-items: center; justify-content: center; background: #000; border-radius: 6px; overflow: hidden; }
+    .rv-video canvas { max-width: 100%; max-height: 100%; width: auto; height: auto; display: block; }
+    .rv-panel { min-height: 0; max-height: 38vh; overflow-y: auto; }
+    .rv-panel button { font-size: 16px; padding: 10px 20px; margin: 4px 8px 4px 0; border-radius: 6px; }
+    @media (orientation: landscape) {
+      .rv { grid-template-rows: minmax(0, 1fr); grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }
+      .rv-panel { max-height: none; }
+    }`;
+  const wrap = document.createElement('div');
+  wrap.className = 'rv';
+  const main = document.createElement('div');
+  main.className = 'rv-main';
+  const panel = document.createElement('div');
+  panel.className = 'rv-panel';
   const head = document.createElement('div');
-  head.style.cssText = 'padding:12px;border-radius:8px;font-size:22px;font-weight:bold;margin-bottom:8px';
+  head.className = 'rv-head';
   const detail = document.createElement('div');
-  detail.style.cssText = 'font-size:13px;margin-bottom:8px;opacity:.85';
+  detail.className = 'rv-detail';
+  const videoWrap = document.createElement('div');
+  videoWrap.className = 'rv-video';
   const canvas = document.createElement('canvas');
   canvas.width = 480;
   canvas.height = 270;
-  canvas.style.cssText = 'width:100%;background:#000;border-radius:6px';
+  videoWrap.append(canvas);
   const btn = document.createElement('button');
-  btn.style.cssText = 'font-size:18px;padding:12px 24px;margin:8px 0;border-radius:6px';
   const info = document.createElement('pre');
   info.style.cssText = 'font-size:12px;white-space:pre-wrap;margin:4px 0';
   const note = document.createElement('div');
@@ -33,10 +57,13 @@ export function mountRearScreen(root: HTMLElement): void {
   viewerBox.style.cssText = 'font-size:13px;margin:6px 0;padding:8px;border:1px solid #444;border-radius:6px;word-break:break-all';
   const revokeBtn = document.createElement('button');
   revokeBtn.textContent = 'Revoke viewer access';
-  revokeBtn.style.cssText = 'font-size:14px;padding:8px 14px;margin:4px 0;border-radius:6px';
+  revokeBtn.style.fontSize = '14px';
   const qrCanvas = document.createElement('canvas');
-  qrCanvas.style.cssText = 'display:none;width:260px;height:260px;image-rendering:pixelated;margin:6px 0;border-radius:4px';
-  root.append(head, detail, canvas, btn, viewerBox, qrCanvas, revokeBtn, info, note);
+  qrCanvas.style.cssText = 'display:none;width:min(260px,40vmin);height:min(260px,40vmin);image-rendering:pixelated;margin:6px 0;border-radius:4px';
+  main.append(head, detail, videoWrap);
+  panel.append(btn, viewerBox, qrCanvas, revokeBtn, info, note);
+  wrap.append(main, panel);
+  root.append(style, wrap);
   const ctx = canvas.getContext('2d')!;
 
   const preview = (f: CapturedFrame) => {

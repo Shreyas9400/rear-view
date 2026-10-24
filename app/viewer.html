@@ -6,30 +6,40 @@
   <meta name="referrer" content="no-referrer" />
   <title>Rear view</title>
   <style>
-    html, body { margin: 0; background: #111; color: #eee; font-family: -apple-system, system-ui, sans-serif; }
-    #stage { padding: 8px; }
-    #headline { font-size: 22px; font-weight: 700; padding: 10px 12px; border-radius: 8px; background: #2b3a2f; }
+    html, body { margin: 0; height: 100%; background: #111; color: #eee; font-family: -apple-system, system-ui, sans-serif; overflow: hidden; }
+    /* One window, no scrolling: status bar on top, the video takes all remaining space (letterboxed, aspect ratio kept),
+       a compact footer below. 100dvh follows the visible area in mobile Safari; -webkit-fill-available is the older fallback. */
+    #stage { box-sizing: border-box; height: 100vh; height: -webkit-fill-available; height: 100dvh; display: flex; flex-direction: column; gap: 4px;
+             padding: 6px max(8px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); }
+    #top { flex: none; }
+    #headline { font-size: clamp(16px, 4.5vmin, 24px); font-weight: 700; padding: 6px 10px; border-radius: 8px; background: #2b3a2f; }
     #stage[data-level="VEHICLE_NEARBY"] #headline { background: #1f3b5c; }
     #stage[data-level="POSSIBLE_APPROACH"] #headline { background: #8a2b1a; }
     #stage[data-level="UNAVAILABLE"] #headline, #stage[data-state="STALE"] #headline, #stage[data-state="DISCONNECTED"] #headline,
     #stage[data-state="INVALID_SESSION"] #headline { background: #555; }
-    #banner { min-height: 22px; font-weight: 700; color: #ffb4a8; padding: 4px 2px; }
-    #detail { font-size: 13px; opacity: .85; min-height: 16px; }
-    #video { width: 100%; background: #000; border-radius: 6px; display: block; }
+    #banner { font-size: 13px; font-weight: 700; color: #ffb4a8; min-height: 16px; padding: 2px 2px 0; }
+    #videoWrap { flex: 1 1 0; min-height: 0; display: flex; align-items: center; justify-content: center; background: #000; border-radius: 6px; overflow: hidden; }
+    #video { max-width: 100%; max-height: 100%; width: auto; height: auto; display: block; }
     #stage[data-state="STALE"] #video, #stage[data-state="DISCONNECTED"] #video, #stage[data-state="INVALID_SESSION"] #video { opacity: .35; }
-    #stats { font-size: 12px; white-space: pre-wrap; margin: 6px 0; font-family: ui-monospace, Menlo, monospace; }
-    #note { font-size: 12px; opacity: .8; }
-    button { font-size: 16px; padding: 10px 18px; border-radius: 6px; margin: 6px 0; }
+    #foot { flex: none; display: flex; align-items: center; gap: 8px; }
+    #stats { flex: 1; font-size: 11px; line-height: 1.25; white-space: pre-wrap; margin: 0; font-family: ui-monospace, Menlo, monospace; }
+    #detail { display: none; }
+    button { flex: none; font-size: 14px; padding: 8px 12px; border-radius: 6px; }
+    #note { flex: none; font-size: 10px; opacity: .75; }
   </style>
 </head>
 <body>
   <div id="stage" data-state="DISCONNECTED" data-level="UNAVAILABLE">
-    <div id="headline">DETECTION UNAVAILABLE</div>
-    <div id="banner"></div>
-    <canvas id="video" width="640" height="360"></canvas>
+    <div id="top">
+      <div id="headline">DETECTION UNAVAILABLE</div>
+      <div id="banner"></div>
+    </div>
+    <div id="videoWrap"><canvas id="video" width="640" height="360"></canvas></div>
+    <div id="foot">
+      <pre id="stats"></pre>
+      <button id="audio" type="button">Enable sound</button>
+    </div>
     <div id="detail"></div>
-    <pre id="stats"></pre>
-    <button id="audio" type="button">Enable sound</button>
     <div id="note">Experimental research prototype - not a safety system. No warning does not mean the road is clear.</div>
   </div>
   <script type="module" src="/src/viewer/main.ts"></script>

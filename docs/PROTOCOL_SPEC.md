@@ -138,7 +138,7 @@ Definitions use `gap` = time since the last binary frame arrived, `msgGap` = tim
 
 | State | Condition | Viewer behaviour |
 | --- | --- | --- |
-| **LIVE (healthy)** | `gap` < 500 ms, `age` ≤ 1000 ms, `detAge` ≤ 1500 ms, `health` all `ok`, `ingest = connected` | Draw video and boxes; show alert level; audio cue on transition to POSSIBLE_APPROACH |
+| **LIVE (healthy)** | `gap` < 500 ms, `age` ≤ 1000 ms, `detAge` ≤ 1500 ms, `health` all `ok`, `ingest = connected` | Draw video and boxes; show alert level; proximity beeping while POSSIBLE_APPROACH (D-035) |
 | **DELAYED** | `gap` < 1000 ms and (`gap` ≥ 500 ms or `age` > 1000 ms) | Draw video with a visible "DELAYED n s" banner; alert level shown but marked delayed; no audio cue |
 | **STALE** | `gap` ≥ 1000 ms while `msgGap` < 3000 ms (socket alive, no frames) | Freeze-frame dimmed with "FEED STALE"; alert shown as UNAVAILABLE; never show the last alert as current |
 | **DISCONNECTED (LOST)** | socket closed, or `msgGap` ≥ 3000 ms | "LINK LOST — reconnecting"; alert UNAVAILABLE; automatic reconnect (§11) |
