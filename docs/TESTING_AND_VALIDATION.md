@@ -150,6 +150,8 @@ Add one row per executed test. **Do not fabricate rows.** Status: PASS / FAIL / 
 
 | T-beep + layout | 2026-10-24 | Vitest; in-app Chromium emulating 390x700 and 844x390 against the phone's viewer; OnePlus 6T screenshot | Beep gap function: 1500 ms at box height 0.08 or less, 100 ms at 0.45 or more, monotone in between, beeps shorter than the gap, nearest = largest confirmed track (4 tests). Viewer fits one window with no scrolling in portrait and landscape (document height equals window height; footer ends 6 px above the bottom at 390 px high). Rear screen in landscape shows headline, video, Stop, link and QR together. "Enable sound" creates the AudioContext without errors. **Not tested:** the beeps themselves against a real or simulated approach, on an iPhone, with the silent switch, or by ear. | PARTIAL |
 
+| V-iphone beeps and layout | 2026-10-24 | User on their iPhone (model and iOS version UNKNOWN) with the v0.1.0-debug APK (commit e8a21b2) on the OnePlus 6T: tapped Start, scanned the QR, tapped Enable sound | User report: the beeps worked and got faster as a car got closer; the layout fits one screen. **Not recorded:** which orientation(s) were checked, what the vehicle was (real road, screen footage?), the box sizes at which beeps changed, how many beeps or false beeps occurred, silent-switch behaviour, run length. The user's observation only; no measurement or recording from my side. | PASS (user-reported) |
+
 Totals as of 2026-10-24: TypeScript 26 files, **279 tests passed**; Java 5 classes, 45 tests passed (44 ours).
 
 Totals as of 2026-10-23: 11 test files, **111 tests passed**.

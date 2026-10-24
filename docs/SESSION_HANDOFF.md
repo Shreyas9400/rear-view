@@ -140,3 +140,4 @@ Update §1–§7; list tests actually run with output references; record new dec
 - **10-minute soak with the iPhone and cooler (2026-10-24):** stable, model 90-95 ms, 6.4-7.5 detections/s, latency p95 168-176 ms, no stall, device speed normal throughout (S-iphone-soak-10min). The viewer dropped for 1-2 minutes mid-run and reconnected by itself; cause unknown. Remaining: hotspot mode, lock/Wi-Fi-drop checks on purpose, the iPhone's own readout over time, 20+ minutes, hot-car conditions.
 
 - **Beep and layout (2026-10-24, D-035):** proximity beeping on the viewer (gap from the nearest confirmed box height) and single-window layouts for viewer and rear screen. First debug APK release built from the commit that contains this. Untested by ear/iPhone: the beeps and the iPhone layout.
+- **User check (2026-10-24):** on the iPhone the beeps got faster as a car got closer and the layout fits one screen (user-reported, unmeasured). Beep thresholds are still first guesses.
