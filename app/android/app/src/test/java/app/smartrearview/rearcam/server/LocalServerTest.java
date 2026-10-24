@@ -404,6 +404,55 @@ public class LocalServerTest {
     }
 
     @Test
+    public void aSavedTokenIsReusedAndAMalformedOneIsReplaced() throws Exception {
+        LocalServer.Config cfg = new LocalServer.Config();
+        cfg.bind = InetAddress.getByName("127.0.0.1");
+        cfg.port = 0;
+        cfg.initialToken = "AAAAAAAAAAAAAAAAAAAAAA";
+        LocalServer a = new LocalServer(cfg, name -> null);
+        a.start();
+        try {
+            assertEquals("AAAAAAAAAAAAAAAAAAAAAA", a.sessionToken());
+            assertFalse("AAAAAAAAAAAAAAAAAAAAAA".equals(a.revoke()));
+        } finally {
+            a.stop();
+        }
+        for (String bad : new String[] {"short", "AAAAAAAAAAAAAAAAAAAAA!", "AAAAAAAAAAAAAAAAAAAAAAA"}) {
+            cfg.initialToken = bad;
+            LocalServer b = new LocalServer(cfg, name -> null);
+            b.start();
+            try {
+                assertTrue(bad, b.sessionToken().matches("[A-Za-z0-9_-]{22}") && !b.sessionToken().equals(bad));
+            } finally {
+                b.stop();
+            }
+        }
+    }
+
+    @Test
+    public void aSilentViewerIsReplacedByANewOneWhenTheServerIsFull() throws Exception {
+        try (Client a = viewer(); Client b = viewer()) {
+            Thread.sleep(LocalServer.EVICT_IDLE_MS + 500); // both are silent now (no pings, no acks)
+            try (Client c = viewer()) { // the newcomer gets in, the longest-silent viewer is closed
+                c.readText("status");
+                assertEquals(4430, a.readCloseCode());
+                assertEquals(2, server.viewerCount());
+            }
+        }
+    }
+
+    @Test
+    public void anActiveViewerIsNotReplaced() throws Exception {
+        try (Client a = viewer(); Client b = viewer(); Client c = new Client(server.port())) {
+            a.text("{\"v\":1,\"type\":\"ping\",\"tClientMs\":1}");
+            b.text("{\"v\":1,\"type\":\"ping\",\"tClientMs\":2}");
+            c.upgrade(origin);
+            c.text("{\"v\":1,\"type\":\"hello\",\"token\":\"" + server.sessionToken() + "\",\"clientId\":\"c\"}");
+            assertEquals(4430, c.readCloseCode());
+        }
+    }
+
+    @Test
     public void tokenIsSixteenRandomBytesInBase64Url() {
         String t = server.sessionToken();
         assertEquals(22, t.length());

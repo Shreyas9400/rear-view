@@ -79,3 +79,6 @@ Manifest permissions reviewed; no secrets in the APK; no logging of tokens; secu
 
 ## 11. Implementation status (2026-10-24)
 Implemented and covered by JUnit over loopback sockets: token auth, Origin check (4403), lockout and connect limits, binary-before-auth (4401), hello timeout (4408), version (4426), viewer limit (4430), revoke (4410), ack stall (4440), rate limit (4429), asset allow-list and traversal rejection, no token in the page or `/healthz`. **Changed from the design:** no loopback ingest socket and no ingest token (D-032), which removes the "another app on the phone connects to ingest" threat. **Not done:** HTTPS, QR, an outbound-traffic capture, expiry test over 12 h. The viewer URL (with token) is shown on the rear screen and in no log; device-test builds log only counters.
+
+## 12. Change 2026-10-24 (D-037): long-lived, remembered viewer token
+The viewer token now survives app restarts (30 days after each server start, until "Revoke viewer access") and is stored in the rear phone's app-private preferences and in the iPhone browser's localStorage, so the address can stay constant. This raises the value of a leaked token and lowers the effort for the user; revoke after sharing a link or losing a phone. Plain HTTP unchanged (token visible to a hotspot sniffer).

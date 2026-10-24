@@ -1,6 +1,7 @@
 // IoU tracker with constant-velocity centre prediction. Pure; no platform dependencies.
-// States: tentative (< minHits consecutive hits) -> confirmed -> lost (no match > lostAfterMs) -> deleted (> deleteAfterMs).
-// A tentative track that misses a frame is deleted immediately (suppresses single-frame blips).
+// States: tentative (< minHits hits among the last confirmWindow updates) -> confirmed -> lost (no match > lostAfterMs) -> deleted
+// (> deleteAfterMs). A tentative track survives ONE missed update (detections near the score threshold flip on and off) and is
+// deleted at the second miss in a row. A missed confirmed track is drawn at its predicted position for up to coastMs.
 
 import type { Box, Detection, Track, TrackSample } from '../shared/types';
 import { iou } from './decode';
@@ -8,6 +9,10 @@ import { iou } from './decode';
 export interface TrackerConfig {
   iouThr: number;
   minHits: number;
+  /** A tentative track is confirmed once it has minHits hits among its last confirmWindow updates. */
+  confirmWindow: number;
+  /** A missed confirmed track is reported at its constant-velocity predicted box for this long (ms), then at its last box. */
+  coastMs: number;
   lostAfterMs: number;
   deleteAfterMs: number;
   historyMs: number;
@@ -16,6 +21,8 @@ export interface TrackerConfig {
 export const DEFAULT_TRACKER: TrackerConfig = {
   iouThr: 0.3,
   minHits: 3,
+  confirmWindow: 5,
+  coastMs: 500,
   lostAfterMs: 1000,
   deleteAfterMs: 2000,
   historyMs: 3000,
@@ -28,6 +35,8 @@ interface Internal {
   score: number;
   state: Track['state'];
   hits: number;
+  /** Outcome (1 hit, 0 miss) of the last confirmWindow updates. */
+  recent: number[];
   ageFrames: number;
   missedFrames: number;
   lastSeenMs: number;
@@ -79,8 +88,10 @@ export class IouTracker {
       if (!trackUsed.has(ti)) {
         t.ageFrames += 1;
         t.missedFrames += 1;
-        t.hits = 0; // "consecutive" hits
-        if (t.state === 'tentative') return; // deleted immediately
+        t.hits = 0; // consecutive hits
+        t.recent.push(0);
+        if (t.recent.length > this.cfg.confirmWindow) t.recent.shift();
+        if (t.state === 'tentative' && t.recent.length >= 2 && t.recent[t.recent.length - 2] === 0) return; // second miss in a row: deleted
         const sinceSeen = tMs - t.lastSeenMs;
         if (sinceSeen > this.cfg.deleteAfterMs) return;
         if (sinceSeen > this.cfg.lostAfterMs) t.state = 'lost';
@@ -98,6 +109,7 @@ export class IouTracker {
         score: d.score,
         state: this.cfg.minHits <= 1 ? 'confirmed' : 'tentative',
         hits: 1,
+        recent: [1],
         ageFrames: 1,
         missedFrames: 0,
         lastSeenMs: tMs,
@@ -108,7 +120,7 @@ export class IouTracker {
     });
 
     this.tracks = survivors;
-    return this.tracks.map(toTrack);
+    return this.tracks.map((t) => toTrack(t, this.cfg.coastMs, tMs));
   }
 
   private applyMatch(t: Internal, d: Detection, tMs: number): void {
@@ -123,22 +135,38 @@ export class IouTracker {
     t.score = d.score;
     t.cls = d.cls;
     t.hits += 1;
+    t.recent.push(1);
+    if (t.recent.length > this.cfg.confirmWindow) t.recent.shift();
     t.ageFrames += 1;
     t.missedFrames = 0;
     t.lastSeenMs = tMs;
     t.history.push({ tMs, cx: now.cx, cy: now.cy, h: d.box.h });
     const cutoff = tMs - this.cfg.historyMs;
     while (t.history.length > 0 && t.history[0]!.tMs < cutoff) t.history.shift();
-    if (t.hits >= this.cfg.minHits) t.state = 'confirmed';
-    else if (t.state === 'lost') t.state = 'tentative';
+    if (t.state === 'confirmed') return;
+    if (t.state === 'lost') {
+      // reacquired after being lost for over a second: verify again from scratch
+      t.state = 'tentative';
+      t.recent = [1];
+      t.hits = 1;
+    }
+    const recentHits = t.recent.reduce((a, b) => a + b, 0);
+    if (t.hits >= this.cfg.minHits || recentHits >= this.cfg.minHits) t.state = 'confirmed';
   }
 }
 
-function toTrack(t: Internal): Track {
+function clampBox(b: Box): Box {
+  const x = Math.min(1, Math.max(0, b.x));
+  const y = Math.min(1, Math.max(0, b.y));
+  return { x, y, w: Math.min(b.w, 1 - x), h: Math.min(b.h, 1 - y) };
+}
+
+function toTrack(t: Internal, coastMs: number, tMs: number): Track {
+  const coast = t.state === 'confirmed' && t.missedFrames > 0 && tMs - t.lastSeenMs <= coastMs;
   return {
     id: t.id,
     cls: t.cls,
-    box: { ...t.box },
+    box: coast ? clampBox(predicted(t, tMs)) : { ...t.box },
     score: t.score,
     state: t.state,
     ageFrames: t.ageFrames,

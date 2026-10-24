@@ -47,6 +47,7 @@ export function mountRearScreen(root: HTMLElement): void {
   canvas.width = 480;
   canvas.height = 270;
   videoWrap.append(canvas);
+  videoWrap.style.position = 'relative';
   const btn = document.createElement('button');
   const info = document.createElement('pre');
   info.style.cssText = 'font-size:12px;white-space:pre-wrap;margin:4px 0';
@@ -84,8 +85,10 @@ export function mountRearScreen(root: HTMLElement): void {
       qrCanvas.style.display = 'none';
       return;
     }
-    viewerBox.textContent = `iPhone viewer (open in Safari on the same hotspot): ${serverInfo.url}
-Viewers connected: ${viewers}. Plain HTTP: anyone on this network who has this link can watch.`;
+    const base = serverInfo.baseUrl ?? serverInfo.url.split('#')[0];
+    viewerBox.textContent = `iPhone viewer address (constant): ${base}
+First time on a device: scan the QR below (it carries the access key); after that just open the address above.
+Viewers connected: ${viewers}. Plain HTTP: anyone on this network who has the address and the key can watch. "Revoke viewer access" invalidates every saved key.`;
     viewerBox.style.whiteSpace = 'pre-wrap';
     revokeBtn.style.display = '';
     if (qrUrl !== serverInfo.url) {
@@ -107,6 +110,9 @@ Viewers connected: ${viewers}. Plain HTTP: anyone on this network who has this l
     const v = statusView(s);
     head.textContent = v.headline;
     head.style.background = COLORS[v.tone];
+    // red outline on the preview while a possible approach or a close person is flagged (same colours as the viewer)
+    const alarm = s.running && (s.alert.level === 'POSSIBLE_APPROACH' || s.alert.level === 'PERSON_CLOSE');
+    videoWrap.style.boxShadow = alarm ? 'inset 0 0 0 6px #ff1f1f' : s.running && s.alert.level === 'VEHICLE_NEARBY' ? 'inset 0 0 0 3px #ffb000' : 'none';
     detail.textContent = v.detail;
     info.textContent = v.lines.join('\n');
     btn.textContent = s.running ? 'Stop' : 'Start';

@@ -10,8 +10,10 @@ export interface LocalServerInfo {
   /** Viewer token: show on the rear screen only (QR or URL), never log. */
   token: string;
   sessionId: string;
-  /** http://ip:port/#t=token */
+  /** http://ip:port/#t=token (the link the QR code carries) */
   url: string;
+  /** http://ip:port/ : the constant address; a browser that has opened the QR link once remembers the token (D-037). */
+  baseUrl?: string;
   candidates?: string[];
 }
 

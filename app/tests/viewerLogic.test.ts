@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BEEP_PERSON, beepIntervalMs, beepLengthMs, ClockOffset, frameAgeMs, levelText, nearestBoxH, reconnectDelayMs, shouldReconnect, tokenFromHash } from '../src/viewer/viewerLogic';
+import { FORGET_TOKEN_CODES, BEEP_PERSON, displaySide, panFor, pickToken, beepIntervalMs, beepLengthMs, ClockOffset, frameAgeMs, levelText, nearestBoxH, reconnectDelayMs, shouldReconnect, tokenFromHash } from '../src/viewer/viewerLogic';
 
 describe('tokenFromHash', () => {
   it('reads a base64url token from the fragment', () => {
@@ -113,5 +113,38 @@ describe('person beeping and wording (D-036)', () => {
   it('words PERSON_CLOSE as a warning without calling anything safe', () => {
     expect(levelText('PERSON_CLOSE')).toBe('PERSON CLOSE BEHIND (experimental)');
     expect(levelText('PERSON_CLOSE').toLowerCase()).not.toMatch(/clear|safe/);
+  });
+});
+
+describe('direction wording, mirroring and the remembered token', () => {
+  it('mirrors left and right like a rear-view mirror, never the centre, and rejects unknown values', () => {
+    expect(displaySide('left', true)).toBe('right');
+    expect(displaySide('right', true)).toBe('left');
+    expect(displaySide('left', false)).toBe('left');
+    expect(displaySide('center', true)).toBe('center');
+    expect(displaySide(undefined, true)).toBeNull();
+    expect(displaySide('up', true)).toBeNull();
+  });
+  it('pans beeps towards the side', () => {
+    expect([panFor('left'), panFor('center'), panFor('right'), panFor(null)]).toEqual([-0.8, 0, 0.8, 0]);
+  });
+  it('words the side for each level, and still never calls anything clear or safe', () => {
+    expect(levelText('POSSIBLE_APPROACH', 'left')).toBe('POSSIBLE APPROACH (experimental) - from the LEFT');
+    expect(levelText('POSSIBLE_APPROACH', 'center')).toContain('straight behind');
+    expect(levelText('PERSON_CLOSE', 'right')).toBe('PERSON CLOSE BEHIND (experimental) - on the RIGHT');
+    expect(levelText('VEHICLE_NEARBY', 'left')).toBe('Vehicle detected behind - on the left');
+    expect(levelText('NORMAL', 'left')).toBe('No tracked vehicle');
+    expect(levelText('UNAVAILABLE', 'left')).toBe('DETECTION UNAVAILABLE');
+    for (const l of ['NORMAL', 'VEHICLE_NEARBY', 'POSSIBLE_APPROACH', 'PERSON_CLOSE', 'UNAVAILABLE']) for (const sd of ['left', 'right', 'center', null] as const) expect(levelText(l, sd).toLowerCase()).not.toMatch(/clear|safe/);
+  });
+  it('uses the token from a fresh link and remembers it, else the remembered one, else none', () => {
+    expect(pickToken('#t=abcdefgh12345', 'oldtoken1234')).toEqual({ token: 'abcdefgh12345', store: 'abcdefgh12345' });
+    expect(pickToken('', 'oldtoken1234')).toEqual({ token: 'oldtoken1234', store: null });
+    expect(pickToken('', null)).toEqual({ token: null, store: null });
+    expect(pickToken('#junk', 'bad token!')).toEqual({ token: null, store: null });
+  });
+  it('forgets the token only when the rear phone rejected it', () => {
+    expect([...FORGET_TOKEN_CODES]).toEqual([4401, 4410, 4411]);
+    expect(FORGET_TOKEN_CODES.includes(4430)).toBe(false);
   });
 });

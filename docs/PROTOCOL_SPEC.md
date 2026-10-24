@@ -6,6 +6,8 @@ Status: **viewer protocol implemented (D-032); no ingest listener (superseded: t
 
 ## 1. Overview and versioning
 
+> **Implementation note (D-037):** the token is persisted on the rear phone, valid 30 days after each server start, and remembered by the viewer, so section 4 "created at start" and "12 h" no longer hold; an idle authenticated viewer is dropped after 8 s and replaced by a newcomer when it has been silent over 3 s.
+>
 > **Implementation note (D-032):** only the viewer listener exists. The ingest listener, `ingest_hello`/`ingest_welcome`, `ingestToken` and `/ws/ingest` below are **not implemented**; the rear app calls `publishFrame`/`publishRearStatus` on the LocalServer plugin instead. `status` nests the rear fields under `rear`. Static assets are served from `viewer.html` and `assets/*` (hashed file names), not fixed `/viewer.js`/`/viewer.css`.
 
 - Two listeners run inside the Kotlin `LocalServer` plugin on the rear phone:
@@ -85,7 +87,7 @@ export interface HealthFlags {
   sensors: 'ok' | 'missing' | 'off';
   thermal: 'ok' | 'warm' | 'hot' | 'unknown';
 }
-export interface AlertState { level: AlertLevel; reasons: string[]; trackIds: number[]; tMs: number; health: HealthFlags }
+export interface AlertState { level: AlertLevel; side?: 'left' | 'center' | 'right' | null; reasons: string[]; trackIds: number[]; tMs: number; health: HealthFlags } // side added with D-038 (optional, image coordinates)
 export interface FrameMeta {
   v: 1;
   seq: number;              // uint32, +1 per CAPTURED frame (gaps = dropped frames)

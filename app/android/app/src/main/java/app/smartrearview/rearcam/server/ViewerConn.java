@@ -35,6 +35,7 @@ final class ViewerConn {
     private long closeRequestedAtMs;
     private boolean finished;
     private boolean closeSent;
+    private volatile long lastActivityMs = System.nanoTime() / 1_000_000L;
     private long replaced;
     private long sent;
 
@@ -44,6 +45,15 @@ final class ViewerConn {
         this.remoteIp = remoteIp;
         this.ackCredit = ackCredit;
         this.listener = listener;
+    }
+
+    /** Called by the reader thread for every message from the viewer. */
+    void touch(long nowMs) {
+        lastActivityMs = nowMs;
+    }
+
+    long idleMs(long nowMs) {
+        return nowMs - lastActivityMs;
     }
 
     void start() {

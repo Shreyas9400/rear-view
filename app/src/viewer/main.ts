@@ -1,11 +1,12 @@
-// iPhone Safari viewer (docs/PROTOCOL_SPEC.md, D-032). Loaded from the rear phone's server; the token comes from the URL fragment
-// (never sent in an HTTP request), is used once per socket in `hello`, and is not displayed or logged. DOM glue only: the state
+// iPhone Safari viewer (docs/PROTOCOL_SPEC.md, D-032, D-037). Loaded from the rear phone's server. The token comes from the QR link's
+// fragment (never sent in an HTTP request) the first time; it is then remembered in this browser (localStorage) so the plain address
+// http://<ip>:8080 works afterwards. It is used once per socket in `hello` and is not displayed or logged. DOM glue only: the state
 // rules are viewerState.ts and the helpers in viewerLogic.ts, both unit tested.
 
 import { decodeFrame } from '../stream/frameCodec';
 import type { FrameMeta, HealthFlags } from '../shared/types';
 import { classifyViewer, type ViewerFacts, type ViewerView } from './viewerState';
-import { BEEP_PERSON, beepIntervalMs, beepLengthMs, ClockOffset, frameAgeMs, levelText, nearestBoxH, reconnectDelayMs, shouldReconnect, tokenFromHash } from './viewerLogic';
+import { BEEP_PERSON, beepIntervalMs, beepLengthMs, ClockOffset, displaySide, FORGET_TOKEN_CODES, frameAgeMs, levelText, nearestBoxH, panFor, pickToken, reconnectDelayMs, shouldReconnect } from './viewerLogic';
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 const els = {
@@ -16,10 +17,42 @@ const els = {
   stats: $('stats'),
   audio: $<HTMLButtonElement>('audio'),
   stage: $('stage'),
+  fs: $<HTMLButtonElement>('fs'),
+  exitFs: $<HTMLButtonElement>('exitFs'),
+  mirror: $<HTMLButtonElement>('mirror'),
+  chip: $('chip'),
 };
 const ctx = els.canvas.getContext('2d')!;
 
-const token = tokenFromHash(location.hash);
+const store = (k: string, v: string | null): void => {
+  try {
+    if (v === null) localStorage.removeItem(k);
+    else localStorage.setItem(k, v);
+  } catch {
+    /* private browsing or blocked storage: the link's own token still works for this page */
+  }
+};
+const load = (k: string): string | null => {
+  try {
+    return localStorage.getItem(k);
+  } catch {
+    return null;
+  }
+};
+const picked = pickToken(location.hash, load('rv_token'));
+const token = picked.token;
+if (picked.store) {
+  store('rv_token', picked.store);
+  // leave only http://<ip>:<port>/ in the address bar (the fragment never reaches the server anyway)
+  try {
+    history.replaceState(null, '', location.pathname + location.search);
+  } catch {
+    /* ignore */
+  }
+}
+let mirror = load('rv_mirror') !== '0'; // like a rear-view mirror: left on screen = the driver's left
+let lastCloseNote = '';
+let connectStartedAt = 0;
 let ws: WebSocket | null = null;
 let attempt = 0;
 let reconnectTimer: number | undefined;
@@ -42,9 +75,29 @@ let audioCtx: AudioContext | null = null;
 const offset = new ClockOffset();
 const pingSent = new Map<number, number>();
 
+/** Gives up on a socket that never answered (a phone that slept, a hotspot that dropped): its onclose may take minutes or never come. */
+function abandon(sock: WebSocket): void {
+  sock.onopen = sock.onmessage = sock.onclose = sock.onerror = null;
+  try {
+    sock.close();
+  } catch {
+    /* already closed */
+  }
+  if (ws === sock) {
+    ws = null;
+    socketOpen = false;
+  }
+}
+
+function reconnectSoon(delayMs: number): void {
+  window.clearTimeout(reconnectTimer);
+  reconnectTimer = window.setTimeout(connect, delayMs);
+}
+
 function connect(): void {
-  if (!token) return;
+  if (!token || ws) return;
   closeCode = null;
+  connectStartedAt = performance.now();
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   const sock = new WebSocket(`${proto}://${location.host}/ws/view`);
   sock.binaryType = 'arraybuffer';
@@ -63,10 +116,10 @@ function connect(): void {
     if (ws !== sock) return;
     socketOpen = false;
     closeCode = e.code;
+    lastCloseNote = `last close ${e.code}`;
     ws = null;
-    if (shouldReconnect(e.code)) {
-      reconnectTimer = window.setTimeout(connect, reconnectDelayMs(attempt++, Math.random()));
-    }
+    if (FORGET_TOKEN_CODES.includes(e.code)) store('rv_token', null); // the rear phone no longer accepts it: a new QR is needed
+    if (shouldReconnect(e.code)) reconnectSoon(reconnectDelayMs(attempt++, Math.random()));
   };
   sock.onerror = () => undefined; // onclose follows
 }
@@ -171,20 +224,30 @@ function paint(): void {
     els.canvas.width = lastImg.width;
     els.canvas.height = lastImg.height;
   }
-  ctx.drawImage(lastImg, 0, 0);
-  const m = lastShownMeta;
-  if (!showBoxesNow || !m) return;
   const W = els.canvas.width;
   const H = els.canvas.height;
+  if (mirror) {
+    ctx.save();
+    ctx.translate(W, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(lastImg, 0, 0);
+    ctx.restore();
+  } else {
+    ctx.drawImage(lastImg, 0, 0);
+  }
+  const m = lastShownMeta;
+  if (!showBoxesNow || !m) return;
   ctx.lineWidth = Math.max(2, W / 200);
   ctx.font = `${Math.max(12, W / 40)}px sans-serif`;
   for (const t of m.tracks) {
     if (t.state === 'lost') continue;
     ctx.strokeStyle = t.state === 'confirmed' ? '#ffd400' : '#9aa';
     ctx.setLineDash(t.state === 'confirmed' ? [] : [6, 4]);
-    ctx.strokeRect(t.box.x * W, t.box.y * H, t.box.w * W, t.box.h * H);
+    const bx = (mirror ? 1 - t.box.x - t.box.w : t.box.x) * W; // boxes are mirrored with the picture; the label text is not
+    ctx.strokeStyle = t.missedFrames > 0 ? '#ffe680' : ctx.strokeStyle;
+    ctx.strokeRect(bx, t.box.y * H, t.box.w * W, t.box.h * H);
     ctx.fillStyle = ctx.strokeStyle;
-    ctx.fillText(`${t.cls} #${t.id}`, t.box.x * W + 3, Math.max(14, t.box.y * H - 4));
+    ctx.fillText(`${t.cls} #${t.id}`, bx + 3, Math.max(14, t.box.y * H - 4));
   }
   ctx.setLineDash([]);
 }
@@ -197,7 +260,7 @@ function sendPing(): void {
   ws.send(JSON.stringify({ v: 1, type: 'ping', tClientMs: t }));
 }
 
-function tone(freq: number, ms: number): void {
+function tone(freq: number, ms: number, pan = 0): void {
   if (!audioCtx) return;
   const o = audioCtx.createOscillator();
   const g = audioCtx.createGain();
@@ -208,7 +271,13 @@ function tone(freq: number, ms: number): void {
   g.gain.linearRampToValueAtTime(0.25, t0 + 0.006);
   g.gain.setValueAtTime(0.25, Math.max(t0 + 0.006, end - 0.01));
   g.gain.linearRampToValueAtTime(0.0001, end);
-  o.connect(g).connect(audioCtx.destination);
+  const panner = pan !== 0 && typeof audioCtx.createStereoPanner === 'function' ? audioCtx.createStereoPanner() : null;
+  if (panner) {
+    panner.pan.value = pan;
+    o.connect(g).connect(panner).connect(audioCtx.destination);
+  } else {
+    o.connect(g).connect(audioCtx.destination);
+  }
   o.start(t0);
   o.stop(end + 0.01);
 }
@@ -230,7 +299,7 @@ function beepTick(): void {
   if (now < nextBeepAt) return;
   // A person close behind has its own, higher tone and its own curve; it wins over a vehicle approach.
   const gap = person ? beepIntervalMs(nearestBoxH(m.tracks, 'person'), BEEP_PERSON) : beepIntervalMs(nearestBoxH(m.tracks));
-  tone(person ? 1250 : 880, beepLengthMs(gap));
+  tone(person ? 1250 : 880, beepLengthMs(gap), panFor(displaySide(m.alert.side, mirror)));
   nextBeepAt = now + gap;
 }
 
@@ -267,13 +336,19 @@ function render(): void {
     paint();
   }
 
-  els.headline.textContent = token ? (v.state === 'LIVE' || v.state === 'DELAYED' ? levelText(v.alertLevel) : 'DETECTION UNAVAILABLE') : 'No session token - scan the QR code on the rear phone';
+  const shown = v.state === 'LIVE' || v.state === 'DELAYED';
+  const side = shown ? displaySide(newestMeta?.alert.side, mirror) : null;
+  const headline = token ? (shown ? levelText(v.alertLevel, side) : 'DETECTION UNAVAILABLE') : 'No session - scan the QR code on the rear phone';
+  els.headline.textContent = headline;
+  els.chip.textContent = headline;
+  els.stage.dataset.alert = shown && (v.alertLevel === 'POSSIBLE_APPROACH' || v.alertLevel === 'PERSON_CLOSE') ? '1' : '0';
+  els.stage.dataset.side = side ?? '';
   els.banner.textContent = token ? (v.banner ?? '') : '';
   els.stage.dataset.state = token ? v.state : 'INVALID_SESSION';
   els.stage.dataset.level = v.alertLevel;
   const r = rear && now - rearAt < 3000 ? rear : null;
   els.stats.textContent = [
-    `State: ${v.state}  Frame age: ${f.frameAgeMs === null ? '-' : Math.round(f.frameAgeMs) + ' ms'}  Frames: ${framesDrawn}`,
+    `State: ${v.state}  Frame age: ${f.frameAgeMs === null ? '-' : Math.round(f.frameAgeMs) + ' ms'}  Frames: ${framesDrawn}${lastCloseNote && v.state !== 'LIVE' ? '  (' + lastCloseNote + ')' : ''}`,
     r ? `Detections/s: ${r.inferFps ?? '-'}  Camera fps: ${r.captureFps ?? '-'}  Latency p95: ${r.inferP95Ms ?? '-'} ms` : 'Rear status: -',
   ].join('\n');
   els.detail.textContent = newestMeta && (v.state === 'LIVE' || v.state === 'DELAYED') ? newestMeta.alert.reasons.join('; ') : '';
@@ -282,9 +357,57 @@ function render(): void {
   prevView = v;
   prevState = v.state;
 
-  // socket looks alive but nothing has arrived for too long: force a clean reconnect
-  if (ws && socketOpen && lastMsgAt !== null && now - lastMsgAt > 5000) ws.close();
+  // A socket that looks open but has been silent for 5 s (the server sends a status every second), or one that never finished
+  // connecting within 5 s, is dead: drop it and reconnect now instead of waiting for a close event that may never come.
+  if (ws && ((socketOpen && lastMsgAt !== null && now - lastMsgAt > 5000) || (!socketOpen && now - connectStartedAt > 5000))) {
+    lastCloseNote = socketOpen ? 'silent for 5 s' : 'no answer in 5 s';
+    abandon(ws);
+    reconnectSoon(300);
+  }
 }
+
+function wake(): void {
+  // back from the lock screen or another app: do not wait for the backoff timer
+  if (!token || document.visibilityState === 'hidden') return;
+  if (ws && socketOpen && lastMsgAt !== null && performance.now() - lastMsgAt > 3000) abandon(ws);
+  if (!ws) {
+    attempt = 0;
+    reconnectSoon(0);
+  }
+}
+document.addEventListener('visibilitychange', wake);
+window.addEventListener('online', wake);
+window.addEventListener('pageshow', (e) => {
+  if ((e as PageTransitionEvent).persisted) location.reload(); // restored from the back/forward cache: start clean
+  else wake();
+});
+
+function setFullScreen(on: boolean): void {
+  els.stage.classList.toggle('fs', on);
+  const el = els.stage as HTMLElement & { webkitRequestFullscreen?: () => void };
+  try {
+    if (on) (el.requestFullscreen ? el.requestFullscreen() : el.webkitRequestFullscreen?.());
+    else if (document.fullscreenElement) void document.exitFullscreen();
+  } catch {
+    /* iPhone Safari only supports full screen for <video>; the page-level mode above still works */
+  }
+}
+els.fs.onclick = () => setFullScreen(true);
+els.exitFs.onclick = () => setFullScreen(false);
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement) els.stage.classList.remove('fs');
+});
+
+function showMirror(): void {
+  els.mirror.textContent = `Mirror: ${mirror ? 'on' : 'off'}`;
+}
+els.mirror.onclick = () => {
+  mirror = !mirror;
+  store('rv_mirror', mirror ? '1' : '0');
+  showMirror();
+  paint();
+};
+showMirror();
 
 // A new link opened in the same tab only changes the fragment: reload so the new token is used.
 window.addEventListener('hashchange', () => location.reload());
@@ -293,4 +416,3 @@ window.setInterval(render, 250);
 window.setInterval(beepTick, 30);
 window.setInterval(sendPing, 2000);
 render();
-void reconnectTimer;

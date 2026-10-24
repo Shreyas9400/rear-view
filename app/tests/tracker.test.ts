@@ -17,10 +17,33 @@ describe('IouTracker', () => {
     expect(out[0]!.ageFrames).toBe(3);
   });
 
-  it('deletes a tentative track that misses a frame (single-frame blip)', () => {
+  it('deletes a tentative track at its second missed update in a row (a one-frame blip dies)', () => {
     const tr = new IouTracker();
     step(tr, 0, [det(0.5, 0.5, 0.2)]);
-    expect(step(tr, 200, [])).toHaveLength(0);
+    expect(step(tr, 200, [])).toHaveLength(1); // one miss is tolerated
+    expect(step(tr, 400, [])).toHaveLength(0);
+  });
+
+  it('confirms a flickering vehicle: 3 hits among the last 5 updates, with misses in between', () => {
+    const tr = new IouTracker();
+    const seen = [true, false, true, false, true];
+    let out = [] as ReturnType<IouTracker['update']>;
+    seen.forEach((s, i) => (out = step(tr, i * 200, s ? [det(0.5, 0.5, 0.2)] : [])));
+    expect(out).toHaveLength(1);
+    expect(out[0]!.state).toBe('confirmed');
+    expect(out[0]!.id).toBe(1);
+  });
+
+  it('reports a missed confirmed track at its predicted position for up to 500 ms, then at its last box', () => {
+    const tr = new IouTracker();
+    for (let i = 0; i < 6; i++) step(tr, i * 200, [det(0.2 + i * 0.05, 0.5, 0.2)]); // moving right at 0.25/s, last seen t=1000
+    const last = step(tr, 1000, [det(0.45, 0.5, 0.2)])[0]!;
+    const coast = step(tr, 1300, [])[0]!;
+    expect(coast.state).toBe('confirmed');
+    expect(coast.missedFrames).toBeGreaterThan(0);
+    expect(coast.box.x).toBeGreaterThan(last.box.x); // moved on along its velocity
+    const stale = step(tr, 1700, [])[0]!; // 700 ms since seen: back to the last real box
+    expect(stale.box.x).toBeCloseTo(last.box.x, 6);
   });
 
   it('keeps the same id through a short gap, marks lost after 1 s, deletes after 2 s', () => {

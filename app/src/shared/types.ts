@@ -40,8 +40,13 @@ export interface HealthFlags {
   thermal: 'ok' | 'warm' | 'hot' | 'unknown';
 }
 
+/** Where in the camera image a track is, in IMAGE coordinates (not mirrored): left of 40% of the width, right of 60%, else centre. */
+export type Side = 'left' | 'center' | 'right';
+
 export interface AlertState {
   level: AlertLevel;
+  /** Side of the image where the alert's main track is; null/absent when there is none. The viewer decides how to word it (mirroring). */
+  side?: Side | null;
   reasons: string[];
   trackIds: number[];
   tMs: number;

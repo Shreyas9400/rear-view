@@ -2,7 +2,15 @@
 // Health override: if camera or detector is not 'ok' the level is UNAVAILABLE regardless of tracks.
 // NORMAL means "no tracked vehicle", never "road clear".
 
-import type { AlertState, ApproachEstimate, HealthFlags, Track } from '../shared/types';
+import type { AlertState, ApproachEstimate, HealthFlags, Side, Track } from '../shared/types';
+
+/** Side of the image a track is on (image coordinates, not mirrored). */
+export function sideOf(t: Track): Side {
+  const cx = t.box.x + t.box.w / 2;
+  return cx < 0.4 ? 'left' : cx > 0.6 ? 'right' : 'center';
+}
+
+const largest = (ts: Track[]): Track | null => ts.reduce<Track | null>((a, t) => (a === null || t.box.h > a.box.h ? t : a), null);
 
 export interface AlertConfig {
   approachGrowthThr: number;
@@ -17,6 +25,8 @@ export interface AlertConfig {
   personEnterUpdates: number;
   personExitUpdates: number;
   personMinAgeFrames: number;
+  /** After the last confirmed vehicle disappears, keep VEHICLE_NEARBY this long so a flickering box does not flicker the level. */
+  nearbyHoldMs: number;
 }
 
 export const DEFAULT_ALERT: AlertConfig = {
@@ -30,6 +40,7 @@ export const DEFAULT_ALERT: AlertConfig = {
   personEnterUpdates: 2,
   personExitUpdates: 4,
   personMinAgeFrames: 3,
+  nearbyHoldMs: 1500,
 };
 
 export interface AlertInput {
@@ -46,6 +57,7 @@ export class AlertStateMachine {
   private personQualify = 0;
   private personActive = false;
   private personQuiet = 0;
+  private lastNearby: { tMs: number; ids: number[]; side: Side | null } | null = null;
 
   constructor(private readonly cfg: AlertConfig = DEFAULT_ALERT) {}
 
@@ -56,6 +68,7 @@ export class AlertStateMachine {
     this.personQualify = 0;
     this.personActive = false;
     this.personQuiet = 0;
+    this.lastNearby = null;
   }
 
   update(i: AlertInput): AlertState {
@@ -111,15 +124,24 @@ export class AlertStateMachine {
       const ids = close.length > 0 ? close.map((t) => t.id) : persons.map((t) => t.id);
       const reasons = ['person close behind the vehicle (experimental, box size is only a proxy for distance)'];
       if (this.approachActive) reasons.push('a tracked vehicle is also growing in frame');
-      return { level: 'PERSON_CLOSE', reasons, trackIds: ids, tMs, health };
+      const main = largest((close.length > 0 ? close : persons).filter((t) => ids.includes(t.id)));
+      return { level: 'PERSON_CLOSE', reasons, trackIds: ids, side: main ? sideOf(main) : null, tMs, health };
     }
 
     if (this.approachActive) {
       const ids = qualifying.length > 0 ? qualifying : confirmed.map((t) => t.id);
-      return { level: 'POSSIBLE_APPROACH', reasons: ['tracked vehicle growing in frame (experimental heuristic)'], trackIds: ids, tMs, health };
+      const main = largest(confirmed.filter((t) => ids.includes(t.id)));
+      const side = main ? sideOf(main) : null;
+      return { level: 'POSSIBLE_APPROACH', reasons: ['tracked vehicle growing in frame (experimental heuristic)'], trackIds: ids, side, tMs, health };
     }
     if (confirmed.length > 0) {
-      return { level: 'VEHICLE_NEARBY', reasons: [`${confirmed.length} tracked vehicle(s)`], trackIds: confirmed.map((t) => t.id), tMs, health };
+      const main = largest(confirmed);
+      const side = main ? sideOf(main) : null;
+      this.lastNearby = { tMs, ids: confirmed.map((t) => t.id), side };
+      return { level: 'VEHICLE_NEARBY', reasons: [`${confirmed.length} tracked vehicle(s)`], trackIds: confirmed.map((t) => t.id), side, tMs, health };
+    }
+    if (this.lastNearby && tMs - this.lastNearby.tMs <= this.cfg.nearbyHoldMs) {
+      return { level: 'VEHICLE_NEARBY', reasons: ['tracked vehicle just lost (holding)'], trackIds: this.lastNearby.ids, side: this.lastNearby.side, tMs, health };
     }
     const reason = persons.length > 0 ? `no tracked vehicle; ${persons.length} person(s) tracked, not close` : 'no tracked vehicle';
     return { level: 'NORMAL', reasons: [reason], trackIds: [], tMs, health };

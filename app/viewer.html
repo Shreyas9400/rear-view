@@ -4,6 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="referrer" content="no-referrer" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Rear view</title>
   <style>
     html, body { margin: 0; height: 100%; background: #111; color: #eee; font-family: -apple-system, system-ui, sans-serif; overflow: hidden; }
@@ -19,11 +22,41 @@
     #stage[data-level="UNAVAILABLE"] #headline, #stage[data-state="STALE"] #headline, #stage[data-state="DISCONNECTED"] #headline,
     #stage[data-state="INVALID_SESSION"] #headline { background: #555; }
     #banner { font-size: 13px; font-weight: 700; color: #ffb4a8; min-height: 16px; padding: 2px 2px 0; }
-    #videoWrap { flex: 1 1 0; min-height: 0; display: flex; align-items: center; justify-content: center; background: #000; border-radius: 6px; overflow: hidden; }
+    #videoWrap { position: relative; flex: 1 1 0; min-height: 0; display: flex; align-items: center; justify-content: center; background: #000; border-radius: 6px; overflow: hidden;
+                 box-shadow: inset 0 0 0 0 transparent; }
     #video { max-width: 100%; max-height: 100%; width: auto; height: auto; display: block; }
     #stage[data-state="STALE"] #video, #stage[data-state="DISCONNECTED"] #video, #stage[data-state="INVALID_SESSION"] #video { opacity: .35; }
-    #foot { flex: none; display: flex; align-items: center; gap: 8px; }
-    #stats { flex: 1; font-size: 11px; line-height: 1.25; white-space: pre-wrap; margin: 0; font-family: ui-monospace, Menlo, monospace; }
+
+    /* Outline around the video: red and pulsing for a possible approach or a person close, amber for a vehicle nearby,
+       dashed grey when the feed or the detection is not trustworthy. Drawn above the video so it is also visible full screen. */
+    #frame { position: absolute; inset: 0; pointer-events: none; border-radius: 6px; }
+    #stage[data-level="POSSIBLE_APPROACH"][data-state="LIVE"] #frame, #stage[data-level="PERSON_CLOSE"][data-state="LIVE"] #frame,
+    #stage[data-level="POSSIBLE_APPROACH"][data-state="DELAYED"] #frame, #stage[data-level="PERSON_CLOSE"][data-state="DELAYED"] #frame { box-shadow: inset 0 0 0 6px #ff1f1f, inset 0 0 28px 6px rgba(255,31,31,.55); animation: pulse .7s ease-in-out infinite alternate; }
+    #stage[data-level="VEHICLE_NEARBY"][data-state="LIVE"] #frame, #stage[data-level="VEHICLE_NEARBY"][data-state="DELAYED"] #frame { box-shadow: inset 0 0 0 3px #ffb000; }
+    #stage[data-state="STALE"] #frame, #stage[data-state="DISCONNECTED"] #frame, #stage[data-state="DETECTOR_UNAVAILABLE"] #frame, #stage[data-state="INVALID_SESSION"] #frame { outline: 3px dashed #999; outline-offset: -3px; }
+    @keyframes pulse { from { opacity: .55; } to { opacity: 1; } }
+
+    /* Direction arrows on the edge the vehicle or person is on (as shown on screen) */
+    .side { position: absolute; top: 0; bottom: 0; width: 18%; display: flex; align-items: center; font-size: clamp(36px, 14vmin, 90px); color: #ff3b30; text-shadow: 0 0 12px #000; opacity: 0; pointer-events: none; }
+    #sideL { left: 0; justify-content: flex-start; padding-left: 8px; background: linear-gradient(90deg, rgba(255,31,31,.45), transparent); }
+    #sideR { right: 0; justify-content: flex-end; padding-right: 8px; background: linear-gradient(270deg, rgba(255,31,31,.45), transparent); }
+    #stage[data-alert="1"][data-side="left"] #sideL, #stage[data-alert="1"][data-side="right"] #sideR { opacity: 1; }
+
+    /* Status chip and exit button, only used in full-screen (video only) mode */
+    #chip, #exitFs { display: none; position: absolute; z-index: 2; }
+    #chip { top: 8px; left: 8px; max-width: 70%; font-size: 14px; font-weight: 700; padding: 5px 10px; border-radius: 8px; background: rgba(43,58,47,.85); }
+    #stage[data-level="VEHICLE_NEARBY"] #chip { background: rgba(31,59,92,.88); }
+    #stage[data-level="POSSIBLE_APPROACH"] #chip { background: rgba(138,43,26,.92); }
+    #stage[data-level="PERSON_CLOSE"] #chip { background: rgba(161,74,0,.92); }
+    #stage[data-level="UNAVAILABLE"] #chip, #stage[data-state="STALE"] #chip, #stage[data-state="DISCONNECTED"] #chip, #stage[data-state="INVALID_SESSION"] #chip { background: rgba(85,85,85,.92); }
+    #exitFs { top: 6px; right: 6px; padding: 6px 12px; font-size: 14px; opacity: .85; }
+    #stage.fs { padding: 0; gap: 0; }
+    #stage.fs #top, #stage.fs #foot, #stage.fs #note { display: none; }
+    #stage.fs #videoWrap { border-radius: 0; }
+    #stage.fs #chip, #stage.fs #exitFs { display: block; }
+
+    #foot { flex: none; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    #stats { flex: 1 1 140px; font-size: 11px; line-height: 1.25; white-space: pre-wrap; margin: 0; font-family: ui-monospace, Menlo, monospace; }
     #detail { display: none; }
     button { flex: none; font-size: 14px; padding: 8px 12px; border-radius: 6px; }
     #note { flex: none; font-size: 10px; opacity: .75; }
@@ -35,9 +68,18 @@
       <div id="headline">DETECTION UNAVAILABLE</div>
       <div id="banner"></div>
     </div>
-    <div id="videoWrap"><canvas id="video" width="640" height="360"></canvas></div>
+    <div id="videoWrap">
+      <canvas id="video" width="640" height="360"></canvas>
+      <div id="frame"></div>
+      <div class="side" id="sideL">&#9664;</div>
+      <div class="side" id="sideR">&#9654;</div>
+      <div id="chip">DETECTION UNAVAILABLE</div>
+      <button id="exitFs" type="button">Exit full screen</button>
+    </div>
     <div id="foot">
       <pre id="stats"></pre>
+      <button id="fs" type="button">Full screen</button>
+      <button id="mirror" type="button">Mirror: on</button>
       <button id="audio" type="button">Enable sound</button>
     </div>
     <div id="detail"></div>

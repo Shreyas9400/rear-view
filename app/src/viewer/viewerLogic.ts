@@ -51,21 +51,45 @@ export function frameAgeMs(viewerNowEpochMs: number, offsetMs: number | null, tC
 export const NO_RECONNECT_CODES: readonly number[] = [4401, 4403, 4410, 4411];
 export const shouldReconnect = (code: number | null): boolean => code === null || !NO_RECONNECT_CODES.includes(code);
 
-/** Headline for a LIVE/DELAYED alert level. NORMAL is never worded as clear or safe. */
-export function levelText(level: string): string {
+export type SideName = 'left' | 'center' | 'right';
+
+/** Side as the viewer shows it: the camera sees backwards, so a mirror-style view flips left and right (like a rear-view mirror). */
+export function displaySide(side: string | null | undefined, mirror: boolean): SideName | null {
+  if (side !== 'left' && side !== 'right' && side !== 'center') return null;
+  if (!mirror || side === 'center') return side;
+  return side === 'left' ? 'right' : 'left';
+}
+
+/** Stereo pan for a beep (-1 left .. 1 right) so the sound also comes from the side of the vehicle or person. */
+export const panFor = (side: SideName | null): number => (side === 'left' ? -0.8 : side === 'right' ? 0.8 : 0);
+
+/** Headline for a LIVE/DELAYED alert level. NORMAL is never worded as clear or safe. `side` is the side as shown on screen. */
+export function levelText(level: string, side?: SideName | null): string {
+  const where = side === 'left' ? ' - from the LEFT' : side === 'right' ? ' - from the RIGHT' : side === 'center' ? ' - straight behind' : '';
   switch (level) {
     case 'POSSIBLE_APPROACH':
-      return 'POSSIBLE APPROACH (experimental)';
+      return `POSSIBLE APPROACH (experimental)${where}`;
     case 'PERSON_CLOSE':
-      return 'PERSON CLOSE BEHIND (experimental)';
+      return `PERSON CLOSE BEHIND (experimental)${side === 'left' ? ' - on the LEFT' : side === 'right' ? ' - on the RIGHT' : ''}`;
     case 'VEHICLE_NEARBY':
-      return 'Vehicle detected behind';
+      return `Vehicle detected behind${side === 'left' ? ' - on the left' : side === 'right' ? ' - on the right' : ''}`;
     case 'NORMAL':
       return 'No tracked vehicle';
     default:
       return 'DETECTION UNAVAILABLE';
   }
 }
+
+/** Which token to use: a fresh one from the link wins and is remembered; otherwise the remembered one; otherwise none. */
+export function pickToken(hash: string, stored: string | null): { token: string | null; store: string | null } {
+  const fromLink = tokenFromHash(hash);
+  if (fromLink) return { token: fromLink, store: fromLink };
+  const ok = stored !== null && /^[A-Za-z0-9_-]{8,64}$/.test(stored);
+  return { token: ok ? stored : null, store: null };
+}
+
+/** After which close codes the remembered token must be forgotten (the rear phone no longer accepts it). */
+export const FORGET_TOKEN_CODES: readonly number[] = [4401, 4410, 4411];
 
 export interface BeepCurve {
   farH: number;

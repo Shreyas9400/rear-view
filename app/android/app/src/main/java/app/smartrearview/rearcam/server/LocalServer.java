@@ -37,7 +37,10 @@ public final class LocalServer {
     static final int MAX_CONNECTIONS = 12;
     static final int ACK_CREDIT = 2;
     static final long HELLO_TIMEOUT_MS = 3000;
-    static final long IDLE_TIMEOUT_MS = 15_000;
+    /** The viewer pings every 2 s; a viewer silent for this long (screen off, Wi-Fi gone) is dropped so it cannot hold a slot. */
+    static final long IDLE_TIMEOUT_MS = 8000;
+    /** A full server replaces a viewer that has been silent this long when a new, authenticated viewer arrives. */
+    static final long EVICT_IDLE_MS = 3000;
     static final long STATUS_EVERY_MS = 1000;
     static final long REAR_STALE_MS = 2000;
     static final int MSGS_PER_SECOND = 20;
@@ -53,7 +56,10 @@ public final class LocalServer {
         public int streamW = 640;
         public int streamH = 360;
         public int targetFps = 8;
-        public long tokenTtlMs = 12L * 3600_000L;
+        /** The token stays valid this long after the server starts (D-037: 30 days, so the link can stay constant). */
+        public long tokenTtlMs = 30L * 24 * 3600_000L;
+        /** A token saved by the plugin from an earlier run (22 base64url characters); null or malformed -> a new random one. */
+        public String initialToken;
         /** Test hook: extra Origin values accepted (empty in production). */
         public List<String> extraOrigins = new ArrayList<>();
     }
@@ -94,7 +100,7 @@ public final class LocalServer {
         server.bind(new InetSocketAddress(cfg.bind, cfg.port), 16);
         allowedOrigin = "http://" + cfg.bind.getHostAddress() + ":" + server.getLocalPort();
         synchronized (state) {
-            token = randomToken(16);
+            token = validToken(cfg.initialToken) ? cfg.initialToken : randomToken(16);
             tokenIssuedAtMs = mono();
         }
         running = true;
@@ -387,12 +393,24 @@ public final class LocalServer {
                 viewers.remove(c);
             }
         });
+        ViewerConn evict = null;
         synchronized (state) {
             if (viewers.size() >= MAX_VIEWERS) {
-                conn = null;
+                // Replace a viewer that has gone silent (a phone whose screen turned off) rather than refusing the newcomer.
+                for (ViewerConn v : viewers) if (v.idleMs(mono()) > EVICT_IDLE_MS && (evict == null || v.idleMs(mono()) > evict.idleMs(mono()))) evict = v;
+                if (evict != null) {
+                    viewers.remove(evict);
+                    viewers.add(conn);
+                } else {
+                    conn = null;
+                }
             } else {
                 viewers.add(conn);
             }
+        }
+        if (evict != null) {
+            evict.sendText(errorJson(4430, "replaced by a newer viewer"));
+            evict.close(4430, "replaced", mono());
         }
         if (conn == null) {
             rejectSocket(out, 4430, "viewer limit reached");
@@ -430,6 +448,7 @@ public final class LocalServer {
             while (running) {
                 WebSocketProtocol.Frame f = WebSocketProtocol.readClientFrame(in, MAX_TEXT_BYTES);
                 long now = mono();
+                conn.touch(now);
                 if (now - windowStart >= 1000) {
                     windowStart = now;
                     inWindow = 0;
@@ -543,6 +562,15 @@ public final class LocalServer {
         if (origin == null) return false;
         if (origin.equals(allowedOrigin)) return true;
         return cfg.extraOrigins.contains(origin);
+    }
+
+    static boolean validToken(String t) {
+        if (t == null || t.length() != 22) return false;
+        for (int i = 0; i < t.length(); i++) {
+            char c = t.charAt(i);
+            if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_')) return false;
+        }
+        return true;
     }
 
     static boolean constantTimeEquals(String a, String b) {

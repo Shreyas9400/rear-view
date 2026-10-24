@@ -161,3 +161,59 @@ describe('AlertStateMachine: people (D-036)', () => {
     expect(next(sm, { tracks: [person(1, 0.5)] }).level).toBe('NORMAL'); // starts counting again after the outage
   });
 });
+
+describe('AlertStateMachine: holding and side (flicker and direction)', () => {
+  const at = (id: number, cx: number, h = 0.2, over = {}) => track({ id, box: { x: cx - h * 0.75, y: 0.4, w: h * 1.5, h }, ...over });
+
+  it('holds VEHICLE_NEARBY for 1.5 s after the last confirmed vehicle disappears, then returns to NORMAL', () => {
+    const sm = new AlertStateMachine();
+    expect(next(sm, { tracks: [at(1, 0.5)] }).level).toBe('VEHICLE_NEARBY');
+    let s = next(sm, {}); // 200 ms later
+    expect(s.level).toBe('VEHICLE_NEARBY');
+    expect(s.reasons[0]).toContain('holding');
+    for (let i = 0; i < 6; i++) s = next(sm, {}); // up to 1400 ms
+    expect(s.level).toBe('VEHICLE_NEARBY');
+    s = next(sm, {}); // 1600 ms
+    expect(s.level).toBe('NORMAL');
+  });
+
+  it('does not hold across an outage: UNAVAILABLE clears the held vehicle', () => {
+    const sm = new AlertStateMachine();
+    next(sm, { tracks: [at(1, 0.5)] });
+    next(sm, { health: { ...OK, camera: 'error' } });
+    expect(next(sm, {}).level).toBe('NORMAL');
+  });
+
+  it('a flickering box (present, absent, present) keeps one steady level', () => {
+    const sm = new AlertStateMachine();
+    const levels = [[at(1, 0.5)], [], [at(1, 0.5)], [], [], [at(1, 0.5)]].map((tracks) => next(sm, { tracks }).level);
+    expect(new Set(levels)).toEqual(new Set(['VEHICLE_NEARBY']));
+  });
+
+  it('reports the side of the image: left of 40%, right of 60%, else centre', () => {
+    for (const [cx, side] of [[0.2, 'left'], [0.5, 'center'], [0.8, 'right']] as const) {
+      const sm = new AlertStateMachine();
+      expect(next(sm, { tracks: [at(1, cx)] }).side).toBe(side);
+    }
+    expect(next(new AlertStateMachine(), {}).side).toBeUndefined();
+  });
+
+  it('POSSIBLE_APPROACH reports the side of the approaching vehicle (the largest qualifying one)', () => {
+    const sm = new AlertStateMachine();
+    const o = { tracks: [at(1, 0.15, 0.3), at(2, 0.85, 0.2)], approach: [growing(1), growing(2)] };
+    next(sm, o);
+    next(sm, o);
+    const s = next(sm, o);
+    expect(s.level).toBe('POSSIBLE_APPROACH');
+    expect(s.side).toBe('left');
+  });
+
+  it('PERSON_CLOSE reports the side of the close person', () => {
+    const sm = new AlertStateMachine();
+    const p = track({ id: 5, cls: 'person', box: { x: 0.72, y: 0.3, w: 0.2, h: 0.45 } });
+    next(sm, { tracks: [p] });
+    const s = next(sm, { tracks: [p] });
+    expect(s.level).toBe('PERSON_CLOSE');
+    expect(s.side).toBe('right');
+  });
+});

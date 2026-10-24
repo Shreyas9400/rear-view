@@ -1,5 +1,7 @@
 package app.smartrearview.rearcam.server;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.res.AssetManager;
 import android.util.Base64;
 import com.getcapacitor.JSArray;
@@ -54,8 +56,12 @@ public class LocalServerPlugin extends Plugin {
             cfg.streamW = call.getInt("streamW", 640);
             cfg.streamH = call.getInt("streamH", 360);
             cfg.targetFps = call.getInt("targetFps", 8);
+            // The token is kept in app-private storage so the iPhone's saved session keeps working after the app restarts (D-037);
+            // "Revoke viewer access" replaces it, and start({rotate:true}) forces a new one.
+            if (!Boolean.TRUE.equals(call.getBoolean("rotate", false))) cfg.initialToken = prefs().getString("token", null);
             LocalServer s = new LocalServer(cfg, new AssetProvider(getContext().getAssets()));
             s.start();
+            prefs().edit().putString("token", s.sessionToken()).apply();
             server = s;
             bindIp = ip;
             JSObject r = info();
@@ -84,6 +90,7 @@ public class LocalServerPlugin extends Plugin {
             return;
         }
         String t = server.revoke();
+        prefs().edit().putString("token", t).apply();
         JSObject r = new JSObject();
         r.put("token", t);
         r.put("url", "http://" + bindIp + ":" + server.port() + "/#t=" + t);
@@ -163,6 +170,10 @@ public class LocalServerPlugin extends Plugin {
         return server;
     }
 
+    private SharedPreferences prefs() {
+        return getContext().getSharedPreferences("localserver", Context.MODE_PRIVATE);
+    }
+
     private JSObject info() {
         JSObject r = new JSObject();
         r.put("running", true);
@@ -171,6 +182,7 @@ public class LocalServerPlugin extends Plugin {
         r.put("token", server.sessionToken());
         r.put("sessionId", server.sessionId());
         r.put("url", "http://" + bindIp + ":" + server.port() + "/#t=" + server.sessionToken());
+        r.put("baseUrl", "http://" + bindIp + ":" + server.port() + "/");
         return r;
     }
 

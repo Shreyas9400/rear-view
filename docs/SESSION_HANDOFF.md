@@ -143,3 +143,5 @@ Update §1–§7; list tests actually run with output references; record new dec
 - **User check (2026-10-24):** on the iPhone the beeps got faster as a car got closer and the layout fits one screen (user-reported, unmeasured). Beep thresholds are still first guesses.
 
 - **Hotspot works (user-reported 2026-10-24)** and the user is testing in a car in real time. **People detection (D-036)** is implemented and unit-tested but not yet installed on the user's phone (they were mid-test in the car, the phone was not connected to this machine) and not seen working with real people. **Backburner:** multiple input cameras (IMPLEMENTATION_PLAN section 7).
+
+- **v0.3.0 changes (2026-10-24; D-037, D-038):** flicker tolerance (tracker + alert hold), left/right side with mirror toggle and panned beeps, red/amber outline, video-only full-screen mode, constant address with remembered token, reconnect fixes. Untested on the iPhone and in the car. The iPhone reconnect failure cause is unknown. A mock server used for the browser check lived only in the scratchpad (not committed).
