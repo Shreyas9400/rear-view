@@ -152,7 +152,10 @@ Add one row per executed test. **Do not fabricate rows.** Status: PASS / FAIL / 
 
 | V-iphone beeps and layout | 2026-10-24 | User on their iPhone (model and iOS version UNKNOWN) with the v0.1.0-debug APK (commit e8a21b2) on the OnePlus 6T: tapped Start, scanned the QR, tapped Enable sound | User report: the beeps worked and got faster as a car got closer; the layout fits one screen. **Not recorded:** which orientation(s) were checked, what the vehicle was (real road, screen footage?), the box sizes at which beeps changed, how many beeps or false beeps occurred, silent-switch behaviour, run length. The user's observation only; no measurement or recording from my side. | PASS (user-reported) |
 
-Totals as of 2026-10-24: TypeScript 26 files, **279 tests passed**; Java 5 classes, 45 tests passed (44 ours).
+| U-person (TS + Java) | 2026-10-24 | Vitest 288 tests; JUnit for the decoder default classes | Person kept by the decoder (id 0) while bicycle (1) is still dropped; golden fixture regenerated (diff = one person detection); AlertStateMachine: far person stays NORMAL, close person -> PERSON_CLOSE after 2 updates, tentative/young/low-confidence persons ignored, hysteresis and 4-update exit, beats a vehicle approach, a walking-closer person never triggers the vehicle approach, health overrides; viewer person beep curve and wording. **No real person has been detected on the phone yet with this build.** | PASS (unit) |
+| V-hotspot in car | 2026-10-24 | User, own phone as hotspot host, iPhone viewer, in a car | The user reported that hotspot mode works and that they are testing in the car in real time. No numbers, duration or issues were reported to me. | PASS (user-reported, unmeasured) |
+
+Totals as of 2026-10-24: TypeScript 26 files, **288 tests passed**; Java 5 classes, 45 tests passed (44 ours).
 
 Totals as of 2026-10-23: 11 test files, **111 tests passed**.
 

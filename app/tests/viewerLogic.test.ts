@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { beepIntervalMs, beepLengthMs, ClockOffset, frameAgeMs, levelText, nearestBoxH, reconnectDelayMs, shouldReconnect, tokenFromHash } from '../src/viewer/viewerLogic';
+import { BEEP_PERSON, beepIntervalMs, beepLengthMs, ClockOffset, frameAgeMs, levelText, nearestBoxH, reconnectDelayMs, shouldReconnect, tokenFromHash } from '../src/viewer/viewerLogic';
 
 describe('tokenFromHash', () => {
   it('reads a base64url token from the fragment', () => {
@@ -93,5 +93,25 @@ describe('proximity beeping', () => {
     expect(nearestBoxH([t('confirmed', 0.1), t('confirmed', 0.3), t('tentative', 0.6), t('lost', 0.9)])).toBe(0.3);
     expect(nearestBoxH([t('tentative', 0.6)])).toBeNull();
     expect(nearestBoxH([])).toBeNull();
+  });
+});
+
+describe('person beeping and wording (D-036)', () => {
+  it('uses a separate curve for people: 800 ms gaps at the close threshold, 100 ms when the person fills the frame', () => {
+    expect(beepIntervalMs(0.3, BEEP_PERSON)).toBe(800);
+    expect(beepIntervalMs(0.75, BEEP_PERSON)).toBe(100);
+    expect(beepIntervalMs(0.5, BEEP_PERSON)).toBeLessThan(beepIntervalMs(0.4, BEEP_PERSON));
+    expect(beepIntervalMs(0.3)).toBeLessThan(beepIntervalMs(0.3, BEEP_PERSON)); // the vehicle curve is already fast by 0.3
+  });
+  it('nearestBoxH separates people from vehicles', () => {
+    const t = (cls: string, h: number) => ({ state: 'confirmed', cls, box: { h } });
+    const tracks = [t('car', 0.2), t('person', 0.5), t('truck', 0.3), t('person', 0.35)];
+    expect(nearestBoxH(tracks)).toBe(0.3);
+    expect(nearestBoxH(tracks, 'person')).toBe(0.5);
+    expect(nearestBoxH([t('car', 0.2)], 'person')).toBeNull();
+  });
+  it('words PERSON_CLOSE as a warning without calling anything safe', () => {
+    expect(levelText('PERSON_CLOSE')).toBe('PERSON CLOSE BEHIND (experimental)');
+    expect(levelText('PERSON_CLOSE').toLowerCase()).not.toMatch(/clear|safe/);
   });
 });

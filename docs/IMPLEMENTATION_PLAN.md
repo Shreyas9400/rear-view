@@ -144,3 +144,6 @@ If no detector works, ship the stream and UI with "detection unavailable" shown 
 ## 6. Cut list (do not build without a documented decision)
 
 WebRTC, SAM/segmentation, metric distance, cloud services, databases, gyro-based fusion, re-identification, recording by default.
+
+## 7. Backburner (user wishes, not scheduled; need a documented decision before any work)
+- **Multiple input cameras** (user, 2026-10-24: "not now, later"). Not designed. Open questions to settle first: how a second camera attaches (a second phone as another capture node, USB/IP camera, or a second Android camera id on the same phone - most phones allow one camera open at a time), per-camera detection and tracking, how the viewer shows and prioritises several feeds, what the alert means across cameras, load and heat (one phone already slows after about 40 s without cooling), and the protocol change (a camera id in `FrameMeta`, so a major or compatible version bump). Architecture currently assumes one camera per rear phone (`CameraLike` is a single instance; one pipeline).

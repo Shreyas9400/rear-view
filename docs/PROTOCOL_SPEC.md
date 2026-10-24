@@ -69,7 +69,7 @@ All JSON messages: `{"v":1,"type":"<name>", ...}`. UTF-8 text frames, max 16 KiB
 ## 6. Types
 
 ```ts
-export type VehicleClass = 'car' | 'motorcycle' | 'bus' | 'truck';
+export type VehicleClass = 'car' | 'motorcycle' | 'bus' | 'truck' | 'person'; // 'person' added with D-036 (optional-value addition, compatible within v1)
 export interface Box { x: number; y: number; w: number; h: number } // normalised 0..1, top-left origin, relative to the JPEG
 export interface Detection { cls: VehicleClass; score: number; box: Box }
 export interface TrackSample { tMs: number; cx: number; cy: number; h: number }
@@ -78,7 +78,7 @@ export interface Track {
   state: 'tentative' | 'confirmed' | 'lost';
   ageFrames: number; missedFrames: number; history: TrackSample[]; // history omitted on the wire to the viewer (bounded)
 }
-export type AlertLevel = 'NORMAL' | 'VEHICLE_NEARBY' | 'POSSIBLE_APPROACH' | 'UNAVAILABLE';
+export type AlertLevel = 'NORMAL' | 'VEHICLE_NEARBY' | 'POSSIBLE_APPROACH' | 'PERSON_CLOSE' | 'UNAVAILABLE'; // PERSON_CLOSE added with D-036
 export interface HealthFlags {
   camera: 'ok' | 'stalled' | 'denied' | 'error';
   detector: 'ok' | 'slow' | 'failed';

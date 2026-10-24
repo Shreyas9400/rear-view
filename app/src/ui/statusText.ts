@@ -25,6 +25,10 @@ export function statusView(s: PipelineSnapshot): StatusView {
       headline = 'Possible approach (experimental)';
       tone = 'warn';
       break;
+    case 'PERSON_CLOSE':
+      headline = 'Person close behind (experimental)';
+      tone = 'warn';
+      break;
     case 'VEHICLE_NEARBY':
       headline = 'Vehicle detected behind';
       tone = 'info';

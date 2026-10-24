@@ -98,3 +98,66 @@ describe('AlertStateMachine', () => {
     expect(next(sm, g).level).toBe('VEHICLE_NEARBY');
   });
 });
+
+describe('AlertStateMachine: people (D-036)', () => {
+  const person = (id: number, h: number, over = {}) => track({ id, cls: 'person', box: { x: 0.4, y: 0.3, w: h / 2, h }, ...over });
+
+  it('a person who is far or small does not raise PERSON_CLOSE, and does not count as a nearby vehicle', () => {
+    const sm = new AlertStateMachine();
+    for (let i = 0; i < 5; i++) {
+      const s = next(sm, { tracks: [person(1, 0.15)] });
+      expect(s.level).toBe('NORMAL');
+      expect(s.reasons.join(' ')).toContain('1 person(s) tracked, not close');
+    }
+  });
+
+  it('a close person raises PERSON_CLOSE after two updates and names the person track', () => {
+    const sm = new AlertStateMachine();
+    expect(next(sm, { tracks: [person(1, 0.4)] }).level).toBe('NORMAL');
+    const s = next(sm, { tracks: [person(1, 0.4)] });
+    expect(s.level).toBe('PERSON_CLOSE');
+    expect(s.trackIds).toEqual([1]);
+    expect(s.reasons[0]).toContain('person close');
+  });
+
+  it('ignores tentative persons, young tracks and low confidence', () => {
+    const sm = new AlertStateMachine();
+    for (const p of [person(1, 0.5, { state: 'tentative' }), person(2, 0.5, { ageFrames: 1 }), person(3, 0.5, { score: 0.4 })]) {
+      next(sm, { tracks: [p] });
+      expect(next(sm, { tracks: [p] }).level).toBe('NORMAL');
+    }
+  });
+
+  it('keeps PERSON_CLOSE with hysteresis (stays down to the exit height) and leaves after four quiet updates', () => {
+    const sm = new AlertStateMachine();
+    next(sm, { tracks: [person(1, 0.4)] });
+    expect(next(sm, { tracks: [person(1, 0.4)] }).level).toBe('PERSON_CLOSE');
+    expect(next(sm, { tracks: [person(1, 0.26)] }).level).toBe('PERSON_CLOSE'); // below 0.30 but above the 0.24 exit height
+    for (let i = 0; i < 3; i++) expect(next(sm, { tracks: [person(1, 0.1)] }).level).toBe('PERSON_CLOSE');
+    expect(next(sm, { tracks: [person(1, 0.1)] }).level).toBe('NORMAL');
+  });
+
+  it('beats a vehicle approach but mentions it; vehicles alone behave as before; a growing person never triggers the vehicle approach', () => {
+    const sm = new AlertStateMachine();
+    const car = track({ id: 9 });
+    const both = { tracks: [car, person(1, 0.4)], approach: [growing(9), growing(1)] };
+    next(sm, both);
+    next(sm, both);
+    const s = next(sm, both);
+    expect(s.level).toBe('PERSON_CLOSE');
+    expect(s.reasons.join(' ')).toContain('vehicle is also growing');
+
+    const sm2 = new AlertStateMachine();
+    const walker = { tracks: [person(1, 0.2)], approach: [growing(1)] };
+    for (let i = 0; i < 6; i++) expect(next(sm2, walker).level).toBe('NORMAL');
+  });
+
+  it('is UNAVAILABLE when health is bad, even with a close person, and forgets person state', () => {
+    const sm = new AlertStateMachine();
+    next(sm, { tracks: [person(1, 0.5)] });
+    next(sm, { tracks: [person(1, 0.5)] });
+    const bad = next(sm, { tracks: [person(1, 0.5)], health: { ...OK, detector: 'failed' } });
+    expect(bad.level).toBe('UNAVAILABLE');
+    expect(next(sm, { tracks: [person(1, 0.5)] }).level).toBe('NORMAL'); // starts counting again after the outage
+  });
+});

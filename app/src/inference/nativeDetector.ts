@@ -27,7 +27,7 @@ export interface NativeDetectorApi {
 export type Rasterizer = (frame: CapturedFrame, lb: Letterbox) => Uint8Array;
 
 /** COCO80 ids kept by the project (same as app/src/core/decode.ts VEHICLE_CLASSES). */
-const CLASS_BY_ID: Readonly<Record<number, VehicleClass>> = { 2: 'car', 3: 'motorcycle', 5: 'bus', 7: 'truck' };
+const CLASS_BY_ID: Readonly<Record<number, VehicleClass>> = { 0: 'person', 2: 'car', 3: 'motorcycle', 5: 'bus', 7: 'truck' };
 
 export { SLOW_P95_MS } from './detectorHealth';
 

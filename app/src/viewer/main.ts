@@ -5,7 +5,7 @@
 import { decodeFrame } from '../stream/frameCodec';
 import type { FrameMeta, HealthFlags } from '../shared/types';
 import { classifyViewer, type ViewerFacts, type ViewerView } from './viewerState';
-import { beepIntervalMs, beepLengthMs, ClockOffset, frameAgeMs, levelText, nearestBoxH, reconnectDelayMs, shouldReconnect, tokenFromHash } from './viewerLogic';
+import { BEEP_PERSON, beepIntervalMs, beepLengthMs, ClockOffset, frameAgeMs, levelText, nearestBoxH, reconnectDelayMs, shouldReconnect, tokenFromHash } from './viewerLogic';
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 const els = {
@@ -221,14 +221,16 @@ let nextBeepAt = 0;
 function beepTick(): void {
   const v = prevView;
   const m = newestMeta;
-  if (!audioCtx || !v || !v.audioCueAllowed || v.alertLevel !== 'POSSIBLE_APPROACH' || !m) {
+  const person = v?.alertLevel === 'PERSON_CLOSE';
+  if (!audioCtx || !v || !v.audioCueAllowed || (!person && v.alertLevel !== 'POSSIBLE_APPROACH') || !m) {
     nextBeepAt = 0;
     return;
   }
   const now = performance.now();
   if (now < nextBeepAt) return;
-  const gap = beepIntervalMs(nearestBoxH(m.tracks));
-  tone(880, beepLengthMs(gap));
+  // A person close behind has its own, higher tone and its own curve; it wins over a vehicle approach.
+  const gap = person ? beepIntervalMs(nearestBoxH(m.tracks, 'person'), BEEP_PERSON) : beepIntervalMs(nearestBoxH(m.tracks));
+  tone(person ? 1250 : 880, beepLengthMs(gap));
   nextBeepAt = now + gap;
 }
 

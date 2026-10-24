@@ -227,7 +227,7 @@ describe('StreamingDetector submit and results', () => {
     expect(seqs).toEqual([19]);
   });
 
-  it('keeps only the four vehicle classes and rejects malformed native results', async () => {
+  it('keeps person and the four vehicle classes and rejects malformed native results', async () => {
     const { d, plugin } = make();
     await d.init(CFG);
     const got: { detections: unknown[] }[] = [];
@@ -236,7 +236,7 @@ describe('StreamingDetector submit and results', () => {
     d.onError((e) => errors.push(e));
     await d.submit(frame(1));
     plugin.emitDetection(result(1, { detections: [2, 3, 5, 7, 0, 1].map((classId) => ({ classId, score: 0.9, x: 0.1, y: 0.1, w: 0.1, h: 0.1 })) }));
-    expect(got[0]!.detections).toHaveLength(4);
+    expect(got[0]!.detections).toHaveLength(5);
 
     await d.submit(frame(2));
     plugin.emitDetection(result(2, { detections: [{ classId: 2, score: 2, x: 0, y: 0, w: 0.1, h: 0.1 }] }));

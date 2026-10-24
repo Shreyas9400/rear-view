@@ -1,6 +1,7 @@
 // Normative wire and module types. Mirrors docs/PROTOCOL_SPEC.md §6 and docs/ARCHITECTURE.md.
 
-export type VehicleClass = 'car' | 'motorcycle' | 'bus' | 'truck';
+/** Detected road-user classes: four vehicle classes plus 'person' (COCO id 0, added with D-036). */
+export type VehicleClass = 'car' | 'motorcycle' | 'bus' | 'truck' | 'person';
 
 /** Normalised 0..1, top-left origin, relative to the source frame / JPEG. */
 export interface Box { x: number; y: number; w: number; h: number }
@@ -30,7 +31,7 @@ export interface ApproachEstimate {
   confidence: number;
 }
 
-export type AlertLevel = 'NORMAL' | 'VEHICLE_NEARBY' | 'POSSIBLE_APPROACH' | 'UNAVAILABLE';
+export type AlertLevel = 'NORMAL' | 'VEHICLE_NEARBY' | 'POSSIBLE_APPROACH' | 'PERSON_CLOSE' | 'UNAVAILABLE';
 
 export interface HealthFlags {
   camera: 'ok' | 'stalled' | 'denied' | 'error';

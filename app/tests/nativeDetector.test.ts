@@ -107,14 +107,14 @@ describe('NativeDetector.detect', () => {
     expect(r!.detections).toEqual([{ cls: 'car', score: 0.8, box: { x: 0.4, y: 0.4, w: 0.2, h: 0.2 } }]);
   });
 
-  it('maps the four vehicle class ids and silently drops others', async () => {
+  it('maps person and the four vehicle class ids and silently drops others', async () => {
     const plugin = fakePlugin();
     const mk = (classId: number) => ({ classId, score: 0.9, x: 0.1, y: 0.1, w: 0.1, h: 0.1 });
     plugin.next = async () => ok({ detections: [2, 3, 5, 7, 0, 1].map(mk) });
     const { d } = make(plugin);
     await d.init(CFG);
     const r = await d.detect(frame());
-    expect(r!.detections.map((x) => x.cls)).toEqual(['car', 'motorcycle', 'bus', 'truck']);
+    expect(r!.detections.map((x) => x.cls)).toEqual(['car', 'motorcycle', 'bus', 'truck', 'person']);
   });
 
   it('measures the bridge cost as round trip minus native time', async () => {

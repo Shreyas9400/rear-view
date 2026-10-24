@@ -12,6 +12,7 @@ export const NUM_ANCHORS = STRIDES.reduce((a, s) => a + (INPUT_SIZE / s) ** 2, 0
 
 /** COCO80 ids kept for this project. */
 export const VEHICLE_CLASSES: Readonly<Record<number, VehicleClass>> = {
+  0: 'person',
   2: 'car',
   3: 'motorcycle',
   5: 'bus',

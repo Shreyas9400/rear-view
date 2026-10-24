@@ -141,3 +141,5 @@ Update §1–§7; list tests actually run with output references; record new dec
 
 - **Beep and layout (2026-10-24, D-035):** proximity beeping on the viewer (gap from the nearest confirmed box height) and single-window layouts for viewer and rear screen. First debug APK release built from the commit that contains this. Untested by ear/iPhone: the beeps and the iPhone layout.
 - **User check (2026-10-24):** on the iPhone the beeps got faster as a car got closer and the layout fits one screen (user-reported, unmeasured). Beep thresholds are still first guesses.
+
+- **Hotspot works (user-reported 2026-10-24)** and the user is testing in a car in real time. **People detection (D-036)** is implemented and unit-tested but not yet installed on the user's phone (they were mid-test in the car, the phone was not connected to this machine) and not seen working with real people. **Backburner:** multiple input cameras (IMPLEMENTATION_PLAN section 7).

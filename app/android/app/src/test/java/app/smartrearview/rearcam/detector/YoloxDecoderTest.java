@@ -144,9 +144,9 @@ public class YoloxDecoderTest {
     }
 
     @Test
-    public void defaultClassesAreTheFourVehicleClasses() {
+    public void defaultClassesArePersonAndTheFourVehicleClasses() {
         Set<Integer> d = YoloxDecoder.Options.defaultClassIds();
-        assertEquals(new HashSet<>(java.util.Arrays.asList(2, 3, 5, 7)), d);
+        assertEquals(new HashSet<>(java.util.Arrays.asList(0, 2, 3, 5, 7)), d);
     }
 
     @Test
@@ -184,6 +184,7 @@ public class YoloxDecoderTest {
     public void anchorCountAndStridesMatchTheModel() {
         assertEquals(3549, YoloxDecoder.NUM_ANCHORS);
         assertEquals(85, YoloxDecoder.ROW);
-        assertFalse(YoloxDecoder.Options.defaultClassIds().contains(0));
+        assertTrue(YoloxDecoder.Options.defaultClassIds().contains(0)); // person is kept since D-036
+        assertFalse(YoloxDecoder.Options.defaultClassIds().contains(1)); // bicycle is not
     }
 }

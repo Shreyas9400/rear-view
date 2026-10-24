@@ -10,6 +10,13 @@ export interface AlertConfig {
   enterUpdates: number;
   exitUpdates: number;
   minTrackAgeFrames: number;
+  /** A confirmed person whose box is at least this tall (fraction of frame height) counts as close. PLACEHOLDER, untuned (D-036). */
+  personCloseH: number;
+  /** Once PERSON_CLOSE, a person stays close down to this height (hysteresis). */
+  personExitH: number;
+  personEnterUpdates: number;
+  personExitUpdates: number;
+  personMinAgeFrames: number;
 }
 
 export const DEFAULT_ALERT: AlertConfig = {
@@ -18,6 +25,11 @@ export const DEFAULT_ALERT: AlertConfig = {
   enterUpdates: 3,
   exitUpdates: 4,
   minTrackAgeFrames: 5,
+  personCloseH: 0.3,
+  personExitH: 0.24,
+  personEnterUpdates: 2,
+  personExitUpdates: 4,
+  personMinAgeFrames: 3,
 };
 
 export interface AlertInput {
@@ -31,6 +43,9 @@ export class AlertStateMachine {
   private qualify = new Map<number, number>();
   private approachActive = false;
   private quiet = 0;
+  private personQualify = 0;
+  private personActive = false;
+  private personQuiet = 0;
 
   constructor(private readonly cfg: AlertConfig = DEFAULT_ALERT) {}
 
@@ -38,6 +53,9 @@ export class AlertStateMachine {
     this.qualify.clear();
     this.approachActive = false;
     this.quiet = 0;
+    this.personQualify = 0;
+    this.personActive = false;
+    this.personQuiet = 0;
   }
 
   update(i: AlertInput): AlertState {
@@ -50,7 +68,10 @@ export class AlertStateMachine {
       return { level: 'UNAVAILABLE', reasons, trackIds: [], tMs, health };
     }
 
-    const confirmed = i.tracks.filter((t) => t.state === 'confirmed');
+    const confirmedAll = i.tracks.filter((t) => t.state === 'confirmed');
+    // Vehicles drive the approach/nearby levels; people have their own "close" rule below.
+    const confirmed = confirmedAll.filter((t) => t.cls !== 'person');
+    const persons = confirmedAll.filter((t) => t.cls === 'person');
     const estById = new Map(i.approach.map((e) => [e.trackId, e]));
     const next = new Map<number, number>();
     for (const t of confirmed) {
@@ -75,6 +96,24 @@ export class AlertStateMachine {
       else if (++this.quiet >= this.cfg.exitUpdates) this.approachActive = false;
     }
 
+    // Person close: a confirmed person with a tall enough box, for enterUpdates in a row; leaves after exitUpdates quiet updates.
+    const closeH = this.personActive ? this.cfg.personExitH : this.cfg.personCloseH;
+    const close = persons.filter((t) => t.box.h >= closeH && t.ageFrames >= this.cfg.personMinAgeFrames && t.score >= this.cfg.minConfidence);
+    if (close.length > 0) {
+      this.personQualify++;
+      this.personQuiet = 0;
+      if (this.personQualify >= this.cfg.personEnterUpdates) this.personActive = true;
+    } else {
+      this.personQualify = 0;
+      if (this.personActive && ++this.personQuiet >= this.cfg.personExitUpdates) this.personActive = false;
+    }
+    if (this.personActive) {
+      const ids = close.length > 0 ? close.map((t) => t.id) : persons.map((t) => t.id);
+      const reasons = ['person close behind the vehicle (experimental, box size is only a proxy for distance)'];
+      if (this.approachActive) reasons.push('a tracked vehicle is also growing in frame');
+      return { level: 'PERSON_CLOSE', reasons, trackIds: ids, tMs, health };
+    }
+
     if (this.approachActive) {
       const ids = qualifying.length > 0 ? qualifying : confirmed.map((t) => t.id);
       return { level: 'POSSIBLE_APPROACH', reasons: ['tracked vehicle growing in frame (experimental heuristic)'], trackIds: ids, tMs, health };
@@ -82,6 +121,7 @@ export class AlertStateMachine {
     if (confirmed.length > 0) {
       return { level: 'VEHICLE_NEARBY', reasons: [`${confirmed.length} tracked vehicle(s)`], trackIds: confirmed.map((t) => t.id), tMs, health };
     }
-    return { level: 'NORMAL', reasons: ['no tracked vehicle'], trackIds: [], tMs, health };
+    const reason = persons.length > 0 ? `no tracked vehicle; ${persons.length} person(s) tracked, not close` : 'no tracked vehicle';
+    return { level: 'NORMAL', reasons: [reason], trackIds: [], tMs, health };
   }
 }

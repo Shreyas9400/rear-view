@@ -58,12 +58,12 @@ describe('decodeYoloxRaw', () => {
     expect(d!.box.y + d!.box.h / 2).toBeCloseTo((5.5 * 16) / 416, 6);
   });
 
-  it('maps COCO ids 2,3,5,7 to car, motorcycle, bus, truck and drops other classes', () => {
+  it('maps COCO ids 0,2,3,5,7 to person, car, motorcycle, bus, truck and drops other classes (bicycle 1)', () => {
     const raw = emptyRaw();
     const ids = [2, 3, 5, 7, 0 /* person */, 1 /* bicycle */];
     ids.forEach((cls, k) => setAnchor(raw, BLOCK.s32 + k * 13 + k, { cx: 0.5, cy: 0.5, w: 0, h: 0, obj: 1, cls, p: 0.9 }));
     const out = decodeYoloxRaw(raw, sq).map((d) => d.cls).sort();
-    expect(out).toEqual(['bus', 'car', 'motorcycle', 'truck']);
+    expect(out).toEqual(['bus', 'car', 'motorcycle', 'person', 'truck']);
   });
 
   it('applies the score threshold', () => {

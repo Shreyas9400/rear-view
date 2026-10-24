@@ -151,7 +151,7 @@ describe('decodeYoloxRaw golden vectors (shared with the Java port)', () => {
 
   it('has the properties the scenarios are meant to exercise', () => {
     const by = Object.fromEntries(fixture.map((s) => [s.name, s]));
-    expect(by['four-vehicle-classes-and-others']!.expect.map((e) => e.classId).sort()).toEqual([2, 3, 5, 7]);
+    expect(by['four-vehicle-classes-and-others']!.expect.map((e) => e.classId).sort()).toEqual([0, 2, 3, 5, 7]); // person added in D-036; bicycle (1) is still dropped
     expect(by['candidate-cap-200']!.expect).toHaveLength(200);
     expect(by['equal-scores-first-wins']!.expect).toHaveLength(1);
     expect(by['threshold-edge']!.expect).toHaveLength(1);

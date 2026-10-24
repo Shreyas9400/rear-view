@@ -20,8 +20,8 @@ public final class YoloxDecoder {
     public static final int NUM_ANCHORS = 52 * 52 + 26 * 26 + 13 * 13; // 3549
     private static final int[] STRIDES = {8, 16, 32};
 
-    /** COCO80 ids kept by default: car 2, motorcycle 3, bus 5, truck 7. */
-    public static final int[] VEHICLE_CLASS_IDS = {2, 3, 5, 7};
+    /** COCO80 ids kept by default: person 0 (D-036), car 2, motorcycle 3, bus 5, truck 7. */
+    public static final int[] VEHICLE_CLASS_IDS = {0, 2, 3, 5, 7};
 
     /** One detection, normalised 0..1 to the source frame (top-left origin). */
     public static final class Detection {
@@ -47,7 +47,7 @@ public final class YoloxDecoder {
         public double nmsIou = 0.45;
         /** Cap on candidates entering NMS (highest score first); 0 or less means no cap. */
         public int maxCandidates = 200;
-        /** Diagnostic override only. The product keeps the four vehicle classes. */
+        /** Diagnostic override only. The product keeps the person and four vehicle classes. */
         public Set<Integer> classIds = defaultClassIds();
 
         public static Set<Integer> defaultClassIds() {
