@@ -28,7 +28,7 @@ export type ParseResult<T> = { ok: true; msg: T } | { ok: false; code: number; r
 
 const MAX_TOKEN_CHARS = 64;
 const MAX_CLIENT_ID_CHARS = 64;
-const LEVELS: readonly string[] = ['NORMAL', 'VEHICLE_NEARBY', 'POSSIBLE_APPROACH', 'PERSON_CLOSE', 'UNAVAILABLE'];
+const LEVELS: readonly string[] = ['NORMAL', 'VEHICLE_NEARBY', 'POSSIBLE_APPROACH', 'VEHICLE_CLOSE', 'PERSON_CLOSE', 'UNAVAILABLE'];
 const HEALTH_VALUES = {
   camera: ['ok', 'stalled', 'denied', 'error'],
   detector: ['ok', 'slow', 'failed'],

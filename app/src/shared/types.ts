@@ -31,7 +31,7 @@ export interface ApproachEstimate {
   confidence: number;
 }
 
-export type AlertLevel = 'NORMAL' | 'VEHICLE_NEARBY' | 'POSSIBLE_APPROACH' | 'PERSON_CLOSE' | 'UNAVAILABLE';
+export type AlertLevel = 'NORMAL' | 'VEHICLE_NEARBY' | 'POSSIBLE_APPROACH' | 'VEHICLE_CLOSE' | 'PERSON_CLOSE' | 'UNAVAILABLE';
 
 export interface HealthFlags {
   camera: 'ok' | 'stalled' | 'denied' | 'error';

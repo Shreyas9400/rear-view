@@ -80,7 +80,7 @@ export interface Track {
   state: 'tentative' | 'confirmed' | 'lost';
   ageFrames: number; missedFrames: number; history: TrackSample[]; // history omitted on the wire to the viewer (bounded)
 }
-export type AlertLevel = 'NORMAL' | 'VEHICLE_NEARBY' | 'POSSIBLE_APPROACH' | 'PERSON_CLOSE' | 'UNAVAILABLE'; // PERSON_CLOSE added with D-036
+export type AlertLevel = 'NORMAL' | 'VEHICLE_NEARBY' | 'POSSIBLE_APPROACH' | 'VEHICLE_CLOSE' | 'PERSON_CLOSE' | 'UNAVAILABLE'; // PERSON_CLOSE (D-036) and VEHICLE_CLOSE (D-039) added
 export interface HealthFlags {
   camera: 'ok' | 'stalled' | 'denied' | 'error';
   detector: 'ok' | 'slow' | 'failed';

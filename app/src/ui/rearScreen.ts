@@ -86,8 +86,9 @@ export function mountRearScreen(root: HTMLElement): void {
       return;
     }
     const base = serverInfo.baseUrl ?? serverInfo.url.split('#')[0];
-    viewerBox.textContent = `iPhone viewer address (constant): ${base}
-First time on a device: scan the QR below (it carries the access key); after that just open the address above.
+    const name = serverInfo.hostUrl ? `\nOr by name (no IP needed, if your iPhone resolves it): ${serverInfo.hostUrl}` : '';
+    viewerBox.textContent = `iPhone viewer address: ${base}${name}
+First time on a device: scan the QR below (it carries the access key); after that just open the address above (bookmark it in Safari).
 Viewers connected: ${viewers}. Plain HTTP: anyone on this network who has the address and the key can watch. "Revoke viewer access" invalidates every saved key.`;
     viewerBox.style.whiteSpace = 'pre-wrap';
     revokeBtn.style.display = '';
@@ -111,7 +112,7 @@ Viewers connected: ${viewers}. Plain HTTP: anyone on this network who has the ad
     head.textContent = v.headline;
     head.style.background = COLORS[v.tone];
     // red outline on the preview while a possible approach or a close person is flagged (same colours as the viewer)
-    const alarm = s.running && (s.alert.level === 'POSSIBLE_APPROACH' || s.alert.level === 'PERSON_CLOSE');
+    const alarm = s.running && (s.alert.level === 'POSSIBLE_APPROACH' || s.alert.level === 'VEHICLE_CLOSE' || s.alert.level === 'PERSON_CLOSE');
     videoWrap.style.boxShadow = alarm ? 'inset 0 0 0 6px #ff1f1f' : s.running && s.alert.level === 'VEHICLE_NEARBY' ? 'inset 0 0 0 3px #ffb000' : 'none';
     detail.textContent = v.detail;
     info.textContent = v.lines.join('\n');
@@ -156,9 +157,23 @@ Viewers connected: ${viewers}. Plain HTTP: anyone on this network who has the ad
     await LocalServerPlugin.stop().catch(() => undefined);
     renderViewer();
   };
+  // Revoking signs every saved viewer out, so it needs a second tap within 4 s (a stray tap must not break the iPhone's connection).
+  let revokeArmed: ReturnType<typeof setTimeout> | null = null;
   revokeBtn.onclick = () => {
+    if (revokeArmed === null) {
+      revokeBtn.textContent = 'Tap again: sign out all saved viewers';
+      revokeArmed = setTimeout(() => {
+        revokeArmed = null;
+        revokeBtn.textContent = 'Revoke viewer access';
+      }, 4000);
+      return;
+    }
+    clearTimeout(revokeArmed);
+    revokeArmed = null;
+    revokeBtn.textContent = 'Revoke viewer access';
     void LocalServerPlugin.revoke().then((r) => {
       if (serverInfo) serverInfo = { ...serverInfo, token: r.token, url: r.url };
+      qrUrl = '';
       renderViewer();
     }, () => undefined);
   };
@@ -210,5 +225,29 @@ Viewers connected: ${viewers}. Plain HTTP: anyone on this network who has the ad
       );
     }, 5000);
   }
-  if (import.meta.env.VITE_AUTOSTART === '1') void start();
+  // Start by itself when the app opens (default on): the rear phone sits far from the driver, so nobody should need to tap Start.
+  // The preview and the "camera active" state stay visible on this screen. Untick to start manually.
+  const AUTO_KEY = 'rv_autostart';
+  const readAuto = (): boolean => {
+    try {
+      return localStorage.getItem(AUTO_KEY) !== '0';
+    } catch {
+      return true;
+    }
+  };
+  const autoRow = document.createElement('label');
+  autoRow.style.cssText = 'display:block;font-size:13px;margin:6px 0';
+  const autoBox = document.createElement('input');
+  autoBox.type = 'checkbox';
+  autoBox.checked = readAuto();
+  autoBox.onchange = () => {
+    try {
+      localStorage.setItem(AUTO_KEY, autoBox.checked ? '1' : '0');
+    } catch {
+      /* not saved: default applies next time */
+    }
+  };
+  autoRow.append(autoBox, ' Start automatically when the app opens');
+  panel.insertBefore(autoRow, viewerBox);
+  if (import.meta.env.VITE_AUTOSTART === '1' || autoBox.checked) setTimeout(() => void start(), 800);
 }

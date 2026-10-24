@@ -133,7 +133,7 @@ Wire types are defined in `PROTOCOL_SPEC.md` §6; module interfaces are listed i
 
 **ApproachEstimator.** For confirmed tracks with ≥N samples in the window (proposed 1.5 s): robust slope (Theil-Sen) of ln(h) versus time → `growthRatePerS`; `ttcProxyS = 1/growth` only when growth > 0. Confidence from track score, age, fit residual. Output is a **trend, not a distance** and not validated. Tests: synthetic growing/shrinking/static boxes, noise, jitter, frame-rate variation.
 
-**AlertStateMachine.** Levels: NORMAL, VEHICLE_NEARBY, POSSIBLE_APPROACH, PERSON_CLOSE (D-036), UNAVAILABLE. Any non-OK camera/detector health → UNAVAILABLE regardless of tracks. POSSIBLE_APPROACH requires growth above threshold for K consecutive updates, track age ≥ N, confidence ≥ c, with hysteresis. Thresholds are placeholders until tuned in G3. Tests: transition table, hysteresis, health override.
+**AlertStateMachine.** Levels: NORMAL, VEHICLE_NEARBY, POSSIBLE_APPROACH, VEHICLE_CLOSE (D-039), PERSON_CLOSE (D-036), UNAVAILABLE. Any non-OK camera/detector health → UNAVAILABLE regardless of tracks. POSSIBLE_APPROACH requires growth above threshold for K consecutive updates, track age ≥ N, confidence ≥ c, with hysteresis. Thresholds are placeholders until tuned in G3. Tests: transition table, hysteresis, health override.
 
 **FramePublisher / LocalServer.** See `PROTOCOL_SPEC.md`. Server lifecycle: started by user, stopped by user or app stop; revoke regenerates tokens. Errors surfaced to the UI. Constraints: one-slot per-viewer buffer, 2 unacked frames, max 2 viewers, frame size limit.
 

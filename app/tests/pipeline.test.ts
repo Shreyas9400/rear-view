@@ -265,19 +265,20 @@ describe('RearViewPipeline frame gating', () => {
 });
 
 describe('RearViewPipeline results to alert', () => {
-  it('a vehicle that keeps growing goes NORMAL -> VEHICLE_NEARBY -> POSSIBLE_APPROACH, with fresh health throughout', async () => {
+  it('a vehicle that keeps growing goes NORMAL -> VEHICLE_NEARBY -> POSSIBLE_APPROACH -> VEHICLE_CLOSE, with fresh health throughout', async () => {
     const h = make();
     await h.p.start();
     const levels: string[] = [];
     h.p.onUpdate((s) => levels.push(s.alert.level));
     growingCar(h, 35, 0.4);
     const s = h.p.snapshot();
-    expect(s.alert.level).toBe('POSSIBLE_APPROACH');
+    expect(s.alert.level).toBe('VEHICLE_CLOSE'); // by the end it fills the frame
     expect(s.tracks.some((t) => t.state === 'confirmed')).toBe(true);
     expect(s.detections).toHaveLength(1);
     expect(s.health).toMatchObject({ camera: 'ok', detector: 'ok' });
     expect(levels).toContain('VEHICLE_NEARBY');
     expect(levels.indexOf('VEHICLE_NEARBY')).toBeLessThan(levels.indexOf('POSSIBLE_APPROACH'));
+    expect(levels.indexOf('POSSIBLE_APPROACH')).toBeLessThan(levels.indexOf('VEHICLE_CLOSE'));
     expect(s.counters.results).toBe(35);
     expect(s.detectionsPerSec).toBeGreaterThan(4);
   });
@@ -299,7 +300,7 @@ describe('RearViewPipeline results to alert', () => {
   it('results that stop arriving turn the alert UNAVAILABLE on the timer, even though the detector reports no error', async () => {
     const h = make();
     await h.p.start();
-    growingCar(h, 35, 0.4);
+    growingCar(h, 14, 0.4);
     expect(h.p.snapshot().alert.level).toBe('POSSIBLE_APPROACH');
     h.clock.advance(2500); // no results for 2.5 s
     h.tick();

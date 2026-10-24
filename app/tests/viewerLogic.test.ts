@@ -133,9 +133,11 @@ describe('direction wording, mirroring and the remembered token', () => {
     expect(levelText('POSSIBLE_APPROACH', 'center')).toContain('straight behind');
     expect(levelText('PERSON_CLOSE', 'right')).toBe('PERSON CLOSE BEHIND (experimental) - on the RIGHT');
     expect(levelText('VEHICLE_NEARBY', 'left')).toBe('Vehicle detected behind - on the left');
+    expect(levelText('VEHICLE_CLOSE', 'right')).toBe('VEHICLE VERY CLOSE (experimental) - on the RIGHT');
+    expect(levelText('VEHICLE_CLOSE')).toBe('VEHICLE VERY CLOSE (experimental)');
     expect(levelText('NORMAL', 'left')).toBe('No tracked vehicle');
     expect(levelText('UNAVAILABLE', 'left')).toBe('DETECTION UNAVAILABLE');
-    for (const l of ['NORMAL', 'VEHICLE_NEARBY', 'POSSIBLE_APPROACH', 'PERSON_CLOSE', 'UNAVAILABLE']) for (const sd of ['left', 'right', 'center', null] as const) expect(levelText(l, sd).toLowerCase()).not.toMatch(/clear|safe/);
+    for (const l of ['NORMAL', 'VEHICLE_NEARBY', 'POSSIBLE_APPROACH', 'VEHICLE_CLOSE', 'PERSON_CLOSE', 'UNAVAILABLE']) for (const sd of ['left', 'right', 'center', null] as const) expect(levelText(l, sd).toLowerCase()).not.toMatch(/clear|safe/);
   });
   it('uses the token from a fresh link and remembers it, else the remembered one, else none', () => {
     expect(pickToken('#t=abcdefgh12345', 'oldtoken1234')).toEqual({ token: 'abcdefgh12345', store: 'abcdefgh12345' });

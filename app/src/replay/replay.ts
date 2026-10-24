@@ -40,7 +40,7 @@ export interface ReplayResult { steps: ReplayStep[]; summary: ReplaySummary }
 export interface ReplayConfig { tracker?: TrackerConfig; approach?: ApproachConfig; alert?: AlertConfig }
 
 const DEFAULT_HEALTH: HealthFlags = { camera: 'ok', detector: 'ok', sensors: 'ok', thermal: 'ok' };
-const SEVERITY: Record<AlertLevel, number> = { NORMAL: 0, VEHICLE_NEARBY: 1, POSSIBLE_APPROACH: 2, PERSON_CLOSE: 3, UNAVAILABLE: 4 };
+const SEVERITY: Record<AlertLevel, number> = { NORMAL: 0, VEHICLE_NEARBY: 1, POSSIBLE_APPROACH: 2, VEHICLE_CLOSE: 3, PERSON_CLOSE: 4, UNAVAILABLE: 5 };
 
 export function runReplay(frames: ReplayFrame[], cfg: ReplayConfig = {}): ReplayResult {
   const tracker = new IouTracker(cfg.tracker);
@@ -50,7 +50,7 @@ export function runReplay(frames: ReplayFrame[], cfg: ReplayConfig = {}): Replay
   const steps: ReplayStep[] = [];
   const seen = new Set<number>();
   const transitions: Transition[] = [];
-  const msInLevel: Record<AlertLevel, number> = { NORMAL: 0, VEHICLE_NEARBY: 0, POSSIBLE_APPROACH: 0, PERSON_CLOSE: 0, UNAVAILABLE: 0 };
+  const msInLevel: Record<AlertLevel, number> = { NORMAL: 0, VEHICLE_NEARBY: 0, POSSIBLE_APPROACH: 0, VEHICLE_CLOSE: 0, PERSON_CLOSE: 0, UNAVAILABLE: 0 };
   let episodes = 0;
   let maxLevel: AlertLevel = 'NORMAL';
 

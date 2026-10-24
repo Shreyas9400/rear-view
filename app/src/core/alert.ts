@@ -27,6 +27,13 @@ export interface AlertConfig {
   personMinAgeFrames: number;
   /** After the last confirmed vehicle disappears, keep VEHICLE_NEARBY this long so a flickering box does not flicker the level. */
   nearbyHoldMs: number;
+  /** A confirmed vehicle whose box is at least this tall (fraction of frame height) is "very close", whether or not it is growing
+   *  (you reversing toward it, or it approaching, or both). PLACEHOLDER, untuned, depends on the mount and lens (D-039). */
+  vehicleCloseH: number;
+  vehicleExitH: number;
+  vehicleEnterUpdates: number;
+  vehicleExitUpdates: number;
+  vehicleMinAgeFrames: number;
 }
 
 export const DEFAULT_ALERT: AlertConfig = {
@@ -41,6 +48,11 @@ export const DEFAULT_ALERT: AlertConfig = {
   personExitUpdates: 4,
   personMinAgeFrames: 3,
   nearbyHoldMs: 1500,
+  vehicleCloseH: 0.35,
+  vehicleExitH: 0.28,
+  vehicleEnterUpdates: 2,
+  vehicleExitUpdates: 4,
+  vehicleMinAgeFrames: 3,
 };
 
 export interface AlertInput {
@@ -57,6 +69,9 @@ export class AlertStateMachine {
   private personQualify = 0;
   private personActive = false;
   private personQuiet = 0;
+  private vehicleQualify = 0;
+  private vehicleActive = false;
+  private vehicleQuiet = 0;
   private lastNearby: { tMs: number; ids: number[]; side: Side | null } | null = null;
 
   constructor(private readonly cfg: AlertConfig = DEFAULT_ALERT) {}
@@ -68,6 +83,9 @@ export class AlertStateMachine {
     this.personQualify = 0;
     this.personActive = false;
     this.personQuiet = 0;
+    this.vehicleQualify = 0;
+    this.vehicleActive = false;
+    this.vehicleQuiet = 0;
     this.lastNearby = null;
   }
 
@@ -126,6 +144,26 @@ export class AlertStateMachine {
       if (this.approachActive) reasons.push('a tracked vehicle is also growing in frame');
       const main = largest((close.length > 0 ? close : persons).filter((t) => ids.includes(t.id)));
       return { level: 'PERSON_CLOSE', reasons, trackIds: ids, side: main ? sideOf(main) : null, tMs, health };
+    }
+
+    // Vehicle very close: proximity alone, independent of growth, so a slow reverse toward a parked car is flagged as well.
+    const vCloseH = this.vehicleActive ? this.cfg.vehicleExitH : this.cfg.vehicleCloseH;
+    const vClose = confirmed.filter((t) => t.box.h >= vCloseH && t.ageFrames >= this.cfg.vehicleMinAgeFrames && t.score >= this.cfg.minConfidence);
+    if (vClose.length > 0) {
+      this.vehicleQualify++;
+      this.vehicleQuiet = 0;
+      if (this.vehicleQualify >= this.cfg.vehicleEnterUpdates) this.vehicleActive = true;
+    } else {
+      this.vehicleQualify = 0;
+      if (this.vehicleActive && ++this.vehicleQuiet >= this.cfg.vehicleExitUpdates) this.vehicleActive = false;
+    }
+    if (this.vehicleActive) {
+      const ids = vClose.length > 0 ? vClose.map((t) => t.id) : confirmed.map((t) => t.id);
+      const main = largest((vClose.length > 0 ? vClose : confirmed).filter((t) => ids.includes(t.id)));
+      const reasons = ['vehicle very close behind (experimental, box size is only a proxy for distance)'];
+      if (this.approachActive) reasons.push('and it is growing in frame');
+      this.lastNearby = { tMs, ids, side: main ? sideOf(main) : null };
+      return { level: 'VEHICLE_CLOSE', reasons, trackIds: ids, side: main ? sideOf(main) : null, tMs, health };
     }
 
     if (this.approachActive) {

@@ -82,3 +82,6 @@ Implemented and covered by JUnit over loopback sockets: token auth, Origin check
 
 ## 12. Change 2026-10-24 (D-037): long-lived, remembered viewer token
 The viewer token now survives app restarts (30 days after each server start, until "Revoke viewer access") and is stored in the rear phone's app-private preferences and in the iPhone browser's localStorage, so the address can stay constant. This raises the value of a leaked token and lowers the effort for the user; revoke after sharing a link or losing a phone. Plain HTTP unchanged (token visible to a hotspot sniffer).
+
+## 13. Change 2026-10-24 (D-040): automatic start and a name responder
+The rear app starts the camera by itself when opened (default on, can be turned off), which departs from "camera only after a tap" in section 3; the visible preview remains. The manifest gains CHANGE_WIFI_MULTICAST_STATE (normal permission) for the rearview.local responder, which answers only queries for that one name and sends nothing else; the responder discloses the phone's IPv4 address to devices on the same network, which already see the server.

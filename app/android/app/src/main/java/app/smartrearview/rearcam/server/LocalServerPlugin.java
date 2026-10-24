@@ -3,6 +3,7 @@ package app.smartrearview.rearcam.server;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.res.AssetManager;
+import android.net.wifi.WifiManager;
 import android.util.Base64;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -31,6 +32,10 @@ import java.util.Locale;
 public class LocalServerPlugin extends Plugin {
     private LocalServer server;
     private String bindIp;
+    private MdnsResponder mdns;
+    private WifiManager.MulticastLock multicastLock;
+    /** The constant name the iPhone can use instead of the IP address (D-040). */
+    static final String MDNS_HOST = "rearview";
 
     @PluginMethod
     public synchronized void start(PluginCall call) {
@@ -63,6 +68,7 @@ public class LocalServerPlugin extends Plugin {
             s.start();
             prefs().edit().putString("token", s.sessionToken()).apply();
             server = s;
+            startMdns(ip);
             bindIp = ip;
             JSObject r = info();
             JSArray c = new JSArray();
@@ -80,6 +86,7 @@ public class LocalServerPlugin extends Plugin {
             server.stop();
             server = null;
         }
+        stopMdns();
         call.resolve();
     }
 
@@ -158,8 +165,35 @@ public class LocalServerPlugin extends Plugin {
         }
     }
 
+    private void startMdns(String ip) {
+        stopMdns();
+        try {
+            InetAddress a = InetAddress.getByName(ip);
+            if (!(a instanceof Inet4Address) || a.isLoopbackAddress()) return;
+            WifiManager wm = (WifiManager) getContext().getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            if (wm != null) {
+                multicastLock = wm.createMulticastLock("rearview-mdns");
+                multicastLock.setReferenceCounted(false);
+                multicastLock.acquire();
+            }
+            MdnsResponder r = new MdnsResponder(MDNS_HOST, (Inet4Address) a, NetworkInterface.getByInetAddress(a));
+            r.start();
+            mdns = r;
+        } catch (Exception e) {
+            mdns = null; // best effort: the IP address link always works
+        }
+    }
+
+    private void stopMdns() {
+        if (mdns != null) mdns.stop();
+        mdns = null;
+        if (multicastLock != null && multicastLock.isHeld()) multicastLock.release();
+        multicastLock = null;
+    }
+
     @Override
     protected void handleOnDestroy() {
+        stopMdns();
         synchronized (this) {
             if (server != null) server.stop();
             server = null;
@@ -183,6 +217,7 @@ public class LocalServerPlugin extends Plugin {
         r.put("sessionId", server.sessionId());
         r.put("url", "http://" + bindIp + ":" + server.port() + "/#t=" + server.sessionToken());
         r.put("baseUrl", "http://" + bindIp + ":" + server.port() + "/");
+        r.put("hostUrl", mdns != null ? "http://" + MDNS_HOST + ".local:" + server.port() + "/" : null);
         return r;
     }
 

@@ -14,6 +14,8 @@ export interface LocalServerInfo {
   url: string;
   /** http://ip:port/ : the constant address; a browser that has opened the QR link once remembers the token (D-037). */
   baseUrl?: string;
+  /** http://rearview.local:port/ when the name responder started (iPhone Bonjour); null otherwise. UNVERIFIED on the hotspot (D-040). */
+  hostUrl?: string | null;
   candidates?: string[];
 }
 

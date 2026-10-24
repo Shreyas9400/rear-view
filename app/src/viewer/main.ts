@@ -291,7 +291,8 @@ function beepTick(): void {
   const v = prevView;
   const m = newestMeta;
   const person = v?.alertLevel === 'PERSON_CLOSE';
-  if (!audioCtx || !v || !v.audioCueAllowed || (!person && v.alertLevel !== 'POSSIBLE_APPROACH') || !m) {
+  const vehicleAlarm = v?.alertLevel === 'POSSIBLE_APPROACH' || v?.alertLevel === 'VEHICLE_CLOSE';
+  if (!audioCtx || !v || !v.audioCueAllowed || (!person && !vehicleAlarm) || !m) {
     nextBeepAt = 0;
     return;
   }
@@ -309,6 +310,14 @@ els.audio.onclick = () => {
   tone(660, 150);
   els.audio.textContent = 'Sound on';
 };
+
+/** For calibrating the "close" thresholds: the largest confirmed box (fraction of the frame height) with its class. */
+function nearestText(): string {
+  const m = newestMeta;
+  let best: { cls: string; h: number } | null = null;
+  for (const t of m?.tracks ?? []) if (t.state === 'confirmed' && (best === null || t.box.h > best.h)) best = { cls: t.cls, h: t.box.h };
+  return best ? `${best.cls} ${best.h.toFixed(2)}` : '-';
+}
 
 function facts(now: number): ViewerFacts {
   const m = newestMeta;
@@ -341,7 +350,7 @@ function render(): void {
   const headline = token ? (shown ? levelText(v.alertLevel, side) : 'DETECTION UNAVAILABLE') : 'No session - scan the QR code on the rear phone';
   els.headline.textContent = headline;
   els.chip.textContent = headline;
-  els.stage.dataset.alert = shown && (v.alertLevel === 'POSSIBLE_APPROACH' || v.alertLevel === 'PERSON_CLOSE') ? '1' : '0';
+  els.stage.dataset.alert = shown && (v.alertLevel === 'POSSIBLE_APPROACH' || v.alertLevel === 'VEHICLE_CLOSE' || v.alertLevel === 'PERSON_CLOSE') ? '1' : '0';
   els.stage.dataset.side = side ?? '';
   els.banner.textContent = token ? (v.banner ?? '') : '';
   els.stage.dataset.state = token ? v.state : 'INVALID_SESSION';
@@ -349,7 +358,7 @@ function render(): void {
   const r = rear && now - rearAt < 3000 ? rear : null;
   els.stats.textContent = [
     `State: ${v.state}  Frame age: ${f.frameAgeMs === null ? '-' : Math.round(f.frameAgeMs) + ' ms'}  Frames: ${framesDrawn}${lastCloseNote && v.state !== 'LIVE' ? '  (' + lastCloseNote + ')' : ''}`,
-    r ? `Detections/s: ${r.inferFps ?? '-'}  Camera fps: ${r.captureFps ?? '-'}  Latency p95: ${r.inferP95Ms ?? '-'} ms` : 'Rear status: -',
+    `Nearest box: ${nearestText()}` + (r ? '  ' : '') + (r ? `Detections/s: ${r.inferFps ?? '-'}  Camera fps: ${r.captureFps ?? '-'}  Latency p95: ${r.inferP95Ms ?? '-'} ms` : 'Rear status: -'),
   ].join('\n');
   els.detail.textContent = newestMeta && (v.state === 'LIVE' || v.state === 'DELAYED') ? newestMeta.alert.reasons.join('; ') : '';
 

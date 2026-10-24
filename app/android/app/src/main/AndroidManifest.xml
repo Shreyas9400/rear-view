@@ -44,6 +44,8 @@
     <!-- Rear camera for the in-WebView getUserMedia capture (milestone M5/M7). Runtime permission: the user is asked on first
          use. Video only: there is no RECORD_AUDIO and nothing is recorded or uploaded (docs/SECURITY_AND_PRIVACY.md). -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Lets the app receive multicast DNS queries for rearview.local on Wi-Fi/hotspot (D-040). A normal permission: no dialog. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 
     <!-- litert-api's manifest adds these "for downloading AiPack models" (Google Play). This app never downloads models,
          so they are removed (least privilege, D-023). Re-add deliberately if a foreground service is ever needed. -->

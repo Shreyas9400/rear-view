@@ -217,3 +217,65 @@ describe('AlertStateMachine: holding and side (flicker and direction)', () => {
     expect(s.side).toBe('right');
   });
 });
+
+describe('AlertStateMachine: vehicle very close (D-039)', () => {
+  const car = (id: number, h: number, over = {}) => track({ id, box: { x: 0.4, y: 0.3, w: h * 1.5, h }, ...over });
+
+  it('a big, steady box (no growth at all) raises VEHICLE_CLOSE after two updates', () => {
+    const sm = new AlertStateMachine();
+    expect(next(sm, { tracks: [car(1, 0.4)], approach: [flat(1)] }).level).toBe('VEHICLE_NEARBY');
+    const s = next(sm, { tracks: [car(1, 0.4)], approach: [flat(1)] });
+    expect(s.level).toBe('VEHICLE_CLOSE');
+    expect(s.reasons[0]).toContain('very close');
+    expect(s.trackIds).toEqual([1]);
+  });
+
+  it('a far or small vehicle stays VEHICLE_NEARBY, even a growing one that has not yet qualified', () => {
+    const sm = new AlertStateMachine();
+    for (let i = 0; i < 6; i++) expect(next(sm, { tracks: [car(1, 0.2)], approach: [flat(1)] }).level).toBe('VEHICLE_NEARBY');
+  });
+
+  it('keeps VEHICLE_CLOSE with hysteresis down to the exit height and leaves after four quiet updates', () => {
+    const sm = new AlertStateMachine();
+    next(sm, { tracks: [car(1, 0.4)] });
+    expect(next(sm, { tracks: [car(1, 0.4)] }).level).toBe('VEHICLE_CLOSE');
+    expect(next(sm, { tracks: [car(1, 0.3)] }).level).toBe('VEHICLE_CLOSE'); // below 0.35 but above the 0.28 exit height
+    for (let i = 0; i < 3; i++) expect(next(sm, { tracks: [car(1, 0.2)] }).level).toBe('VEHICLE_CLOSE');
+    expect(next(sm, { tracks: [car(1, 0.2)] }).level).toBe('VEHICLE_NEARBY');
+  });
+
+  it('outranks POSSIBLE_APPROACH (and says so), but a close person outranks both', () => {
+    const sm = new AlertStateMachine();
+    const both = { tracks: [car(1, 0.4)], approach: [growing(1)] };
+    next(sm, both);
+    next(sm, both);
+    const s = next(sm, both);
+    expect(s.level).toBe('VEHICLE_CLOSE');
+    expect(s.reasons.join(' ')).toContain('growing');
+
+    const sm2 = new AlertStateMachine();
+    const p = track({ id: 7, cls: 'person', box: { x: 0.1, y: 0.3, w: 0.2, h: 0.45 } });
+    const mix = { tracks: [car(1, 0.4), p] };
+    next(sm2, mix);
+    expect(next(sm2, mix).level).toBe('PERSON_CLOSE');
+  });
+
+  it('ignores tentative, young and low-confidence vehicles, and is UNAVAILABLE on bad health', () => {
+    const sm = new AlertStateMachine();
+    for (const c of [car(1, 0.5, { state: 'tentative' }), car(2, 0.5, { ageFrames: 1 }), car(3, 0.5, { score: 0.4 })]) {
+      next(sm, { tracks: [c] });
+      expect(next(sm, { tracks: [c] }).level).not.toBe('VEHICLE_CLOSE');
+    }
+    next(sm, { tracks: [car(9, 0.5)] });
+    next(sm, { tracks: [car(9, 0.5)] });
+    expect(next(sm, { tracks: [car(9, 0.5)], health: { ...OK, camera: 'stalled' } }).level).toBe('UNAVAILABLE');
+    expect(next(sm, { tracks: [car(9, 0.5)] }).level).toBe('VEHICLE_NEARBY'); // counting starts again after the outage
+  });
+
+  it('reports the side of the close vehicle', () => {
+    const sm = new AlertStateMachine();
+    const c = track({ id: 4, box: { x: 0.05, y: 0.3, w: 0.5, h: 0.4 } });
+    next(sm, { tracks: [c] });
+    expect(next(sm, { tracks: [c] }).side).toBe('left');
+  });
+});

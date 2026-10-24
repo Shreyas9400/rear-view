@@ -11,12 +11,12 @@ function carFrames(g: number, seconds = 4, h0 = 0.1): ReplayFrame[] {
 }
 
 describe('runReplay', () => {
-  it('a steadily growing car produces exactly one approach episode', () => {
+  it('a steadily growing car produces exactly one approach episode, then "very close" once it fills enough of the frame', () => {
     const r = runReplay(carFrames(0.4));
     expect(r.summary.approachEpisodes).toBe(1);
-    expect(r.summary.maxLevel).toBe('POSSIBLE_APPROACH');
+    expect(r.summary.maxLevel).toBe('VEHICLE_CLOSE');
     expect(r.summary.trackIdsSeen).toEqual([1]);
-    expect(r.summary.transitions.map((t) => t.to)).toEqual(['VEHICLE_NEARBY', 'POSSIBLE_APPROACH']);
+    expect(r.summary.transitions.map((t) => t.to)).toEqual(['VEHICLE_NEARBY', 'POSSIBLE_APPROACH', 'VEHICLE_CLOSE']);
   });
 
   it('a static car never raises an approach indication', () => {

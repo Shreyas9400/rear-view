@@ -23,13 +23,14 @@ describe('statusView', () => {
   it('maps every level to its wording and tone', () => {
     expect(statusView(snap('NORMAL'))).toMatchObject({ headline: 'No tracked vehicle', tone: 'neutral' });
     expect(statusView(snap('VEHICLE_NEARBY')).tone).toBe('info');
+    expect(statusView(snap('VEHICLE_CLOSE'))).toMatchObject({ headline: 'Vehicle very close behind (experimental)', tone: 'warn' });
     expect(statusView(snap('PERSON_CLOSE'))).toMatchObject({ headline: 'Person close behind (experimental)', tone: 'warn' });
     expect(statusView(snap('POSSIBLE_APPROACH'))).toMatchObject({ headline: 'Possible approach (experimental)', tone: 'warn' });
     expect(statusView(snap('UNAVAILABLE'))).toMatchObject({ headline: 'DETECTION UNAVAILABLE', tone: 'unavailable' });
   });
 
   it('never says clear or safe in any headline or detail line, and always carries the disclaimer', () => {
-    for (const l of ['NORMAL', 'VEHICLE_NEARBY', 'POSSIBLE_APPROACH', 'PERSON_CLOSE', 'UNAVAILABLE'] as const) {
+    for (const l of ['NORMAL', 'VEHICLE_NEARBY', 'POSSIBLE_APPROACH', 'VEHICLE_CLOSE', 'PERSON_CLOSE', 'UNAVAILABLE'] as const) {
       const v = statusView(snap(l));
       expect(v.headline.toLowerCase()).not.toMatch(/clear|safe/);
       expect(v.lines.join(' ').toLowerCase()).not.toMatch(/clear|safe/);

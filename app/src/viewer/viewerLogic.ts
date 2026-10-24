@@ -69,6 +69,8 @@ export function levelText(level: string, side?: SideName | null): string {
   switch (level) {
     case 'POSSIBLE_APPROACH':
       return `POSSIBLE APPROACH (experimental)${where}`;
+    case 'VEHICLE_CLOSE':
+      return `VEHICLE VERY CLOSE (experimental)${side === 'left' ? ' - on the LEFT' : side === 'right' ? ' - on the RIGHT' : side === 'center' ? ' - straight behind' : ''}`;
     case 'PERSON_CLOSE':
       return `PERSON CLOSE BEHIND (experimental)${side === 'left' ? ' - on the LEFT' : side === 'right' ? ' - on the RIGHT' : ''}`;
     case 'VEHICLE_NEARBY':
