@@ -5,6 +5,9 @@ import type { CapturedFrame } from '../capture/source';
 import { createPipeline } from '../pipeline/createPipeline';
 import { LocalServerPlugin, type LocalServerInfo } from '../plugins/localServer';
 import type { PipelineSnapshot } from '../pipeline/pipeline';
+import { alertOverrides, closeHFromBox, EMPTY_CALIBRATION, parseCalibration, type Calibration } from '../core/calibration';
+import { DEFAULT_K, estimateDistanceM, formatDistance, kFromSample } from '../core/distance';
+import type { Track } from '../shared/types';
 import { drawQr, encodeQr } from './qr';
 import { statusView, DISCLAIMER, type Tone } from './statusText';
 
@@ -74,10 +77,93 @@ export function mountRearScreen(root: HTMLElement): void {
   let serverInfo: LocalServerInfo | null = null;
   let serverNote = 'Viewer: off';
   let qrUrl = '';
+  // Calibration of the "close" alert points and the distance scale, kept on this phone (D-041).
+  const CAL_KEY = 'rv_calib';
+  let calib: Calibration = EMPTY_CALIBRATION;
+  try {
+    calib = parseCalibration(localStorage.getItem(CAL_KEY));
+  } catch {
+    /* defaults */
+  }
+  const saveCalib = () => {
+    try {
+      localStorage.setItem(CAL_KEY, JSON.stringify(calib));
+    } catch {
+      /* applies for this session only */
+    }
+  };
   const { pipeline, publisher } = createPipeline({
     previewHook: preview,
+    alertOverrides: alertOverrides(calib),
+    distanceScale: () => ({ k: calib.k ?? DEFAULT_K, calibrated: calib.k !== null }),
     server: { api: LocalServerPlugin, viewersWatching: () => viewers > 0 },
   });
+
+  // --- calibration panel ---
+  const calDetails = document.createElement('details');
+  calDetails.style.cssText = 'font-size:13px;margin:6px 0';
+  const calSummary = document.createElement('summary');
+  calSummary.textContent = 'Distance and alert calibration';
+  const calNearest = document.createElement('div');
+  calNearest.style.cssText = 'margin:6px 0;white-space:pre-wrap';
+  const calMsg = document.createElement('div');
+  calMsg.style.cssText = 'margin:6px 0;opacity:.9';
+  const nearestOf = (tracks: Track[], person: boolean): Track | null =>
+    tracks.filter((x) => x.state === 'confirmed' && (x.cls === 'person') === person).reduce<Track | null>((a, x) => (a === null || x.box.h > a.box.h ? x : a), null);
+  const mkBtn = (label: string, on: () => void) => {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.style.cssText = 'font-size:13px;padding:7px 10px;margin:3px 6px 3px 0;border-radius:6px';
+    b.onclick = on;
+    return b;
+  };
+  const applyCalib = (msg: string) => {
+    saveCalib();
+    pipeline.configureAlert({ vehicleCloseH: 0.35, vehicleExitH: 0.28, personCloseH: 0.3, personExitH: 0.24, ...alertOverrides(calib) });
+    calMsg.textContent = msg;
+  };
+  calDetails.append(
+    calSummary,
+    calNearest,
+    mkBtn('Set "very close" to the nearest vehicle now', () => {
+      const v = last ? nearestOf(last.tracks, false) : null;
+      const h = v ? closeHFromBox(v.box.h) : null;
+      if (!v || h === null) return void (calMsg.textContent = 'No usable confirmed vehicle in view (box between 12% and 95% of the frame needed).');
+      calib = { ...calib, vehicleCloseH: h };
+      applyCalib(`"Very close" for vehicles now starts at box height ${h.toFixed(2)} (${formatDistance(estimateDistanceM(v.cls, h, calib.k ?? DEFAULT_K))}).`);
+    }),
+    mkBtn('Set "person close" to the nearest person now', () => {
+      const v = last ? nearestOf(last.tracks, true) : null;
+      const h = v ? closeHFromBox(v.box.h) : null;
+      if (!v || h === null) return void (calMsg.textContent = 'No usable confirmed person in view.');
+      calib = { ...calib, personCloseH: h };
+      applyCalib(`"Person close" now starts at box height ${h.toFixed(2)}.`);
+    }),
+    mkBtn('Tell the distance of the nearest vehicle', () => {
+      const v = last ? nearestOf(last.tracks, false) : null;
+      if (!v) return void (calMsg.textContent = 'No confirmed vehicle in view.');
+      const answer = window.prompt('How far is that vehicle from the camera, in metres?', '3');
+      const d = answer === null ? NaN : Number(answer.replace(',', '.'));
+      const k = kFromSample(v.cls, v.box.h, d);
+      if (k === null) return void (calMsg.textContent = 'That distance does not fit this box size; nothing changed.');
+      calib = { ...calib, k };
+      applyCalib(`Distance scale set from this sample (${v.cls}, box ${v.box.h.toFixed(2)} = ${d} m). Estimates assume a car is 1.5 m tall.`);
+    }),
+    mkBtn('Reset calibration', () => {
+      calib = EMPTY_CALIBRATION;
+      applyCalib('Back to the defaults.');
+    }),
+    calMsg,
+  );
+  const showNearest = (s: PipelineSnapshot) => {
+    const k = calib.k ?? DEFAULT_K;
+    const line = (label: string, x: Track | null) => (x ? `${label}: ${x.cls} box ${x.box.h.toFixed(2)}, ${formatDistance(estimateDistanceM(x.cls, x.box.h, k))}` : `${label}: -`);
+    calNearest.textContent = [
+      line('Nearest vehicle', nearestOf(s.tracks, false)),
+      line('Nearest person', nearestOf(s.tracks, true)),
+      `Distance scale: ${calib.k === null ? 'rough guess' : 'calibrated'}. "Very close" (vehicle) at box ${(calib.vehicleCloseH ?? 0.35).toFixed(2)}, person close at ${(calib.personCloseH ?? 0.3).toFixed(2)}.`,
+    ].join('\n');
+  };
   const renderViewer = () => {
     if (!serverInfo) {
       viewerBox.textContent = serverNote;
@@ -116,6 +202,7 @@ Viewers connected: ${viewers}. Plain HTTP: anyone on this network who has the ad
     videoWrap.style.boxShadow = alarm ? 'inset 0 0 0 6px #ff1f1f' : s.running && s.alert.level === 'VEHICLE_NEARBY' ? 'inset 0 0 0 3px #ffb000' : 'none';
     detail.textContent = v.detail;
     info.textContent = v.lines.join('\n');
+    if (calDetails.open) showNearest(s);
     btn.textContent = s.running ? 'Stop' : 'Start';
     // boxes from the latest result (drawn over the latest preview frame; both are a few hundred ms old at most)
     if (s.running && s.alert.level !== 'UNAVAILABLE') {
@@ -249,5 +336,6 @@ Viewers connected: ${viewers}. Plain HTTP: anyone on this network who has the ad
   };
   autoRow.append(autoBox, ' Start automatically when the app opens');
   panel.insertBefore(autoRow, viewerBox);
+  panel.insertBefore(calDetails, info);
   if (import.meta.env.VITE_AUTOSTART === '1' || autoBox.checked) setTimeout(() => void start(), 800);
 }

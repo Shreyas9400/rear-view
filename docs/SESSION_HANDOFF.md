@@ -147,3 +147,5 @@ Update §1–§7; list tests actually run with output references; record new dec
 - **v0.3.0 changes (2026-10-24; D-037, D-038):** flicker tolerance (tracker + alert hold), left/right side with mirror toggle and panned beeps, red/amber outline, video-only full-screen mode, constant address with remembered token, reconnect fixes. Untested on the iPhone and in the car. The iPhone reconnect failure cause is unknown. A mock server used for the browser check lived only in the scratchpad (not committed).
 
 - **v0.4.0 (2026-10-24; D-039, D-040):** VEHICLE_CLOSE alert from proximity (uncalibrated), auto-start on app open, rearview.local name responder (unverified on the hotspot), confirm-before-revoke. The user asked whether gyro could tell who is moving; answer: not alone, GPS speed would be needed (needs a location permission and a decision); user's view: warn regardless of cause, which D-039 does. Backburner: ego-motion logging, multiple cameras.
+
+- **v0.5.0 (2026-10-25; D-041):** approximate distance and calibration of the "close" alert points from the rear screen. The proximity sensor is not used. Nothing calibrated on real distances yet.

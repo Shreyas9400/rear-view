@@ -3,8 +3,9 @@
 // http://<ip>:8080 works afterwards. It is used once per socket in `hello` and is not displayed or logged. DOM glue only: the state
 // rules are viewerState.ts and the helpers in viewerLogic.ts, both unit tested.
 
+import { DEFAULT_K, estimateDistanceM, formatDistance } from '../core/distance';
 import { decodeFrame } from '../stream/frameCodec';
-import type { FrameMeta, HealthFlags } from '../shared/types';
+import type { FrameMeta, HealthFlags, VehicleClass } from '../shared/types';
 import { classifyViewer, type ViewerFacts, type ViewerView } from './viewerState';
 import { BEEP_PERSON, beepIntervalMs, beepLengthMs, ClockOffset, displaySide, FORGET_TOKEN_CODES, frameAgeMs, levelText, nearestBoxH, panFor, pickToken, reconnectDelayMs, shouldReconnect } from './viewerLogic';
 
@@ -64,7 +65,7 @@ let newestMeta: FrameMeta | null = null;
 let lastDrawnSeq = -1;
 let sessionId: string | null = null;
 let ingest: 'connected' | 'disconnected' | null = null;
-let rear: { inferFps?: number; inferP95Ms?: number; captureFps?: number; modelMs?: number; health?: HealthFlags } | null = null;
+let rear: { inferFps?: number; inferP95Ms?: number; captureFps?: number; modelMs?: number; health?: HealthFlags; distScale?: number; distCalibrated?: boolean } | null = null;
 let rearAt = 0;
 let framesDrawn = 0;
 let pending: { seq: number; meta: FrameMeta; blob: Blob } | null = null;
@@ -314,9 +315,12 @@ els.audio.onclick = () => {
 /** For calibrating the "close" thresholds: the largest confirmed box (fraction of the frame height) with its class. */
 function nearestText(): string {
   const m = newestMeta;
-  let best: { cls: string; h: number } | null = null;
+  let best: { cls: VehicleClass; h: number } | null = null;
   for (const t of m?.tracks ?? []) if (t.state === 'confirmed' && (best === null || t.box.h > best.h)) best = { cls: t.cls, h: t.box.h };
-  return best ? `${best.cls} ${best.h.toFixed(2)}` : '-';
+  if (!best) return '-';
+  const k = rear?.distScale ?? DEFAULT_K;
+  const calibrated = rear?.distCalibrated === true;
+  return `${best.cls} ${best.h.toFixed(2)} (${formatDistance(estimateDistanceM(best.cls, best.h, k))}, ${calibrated ? 'calibrated' : 'rough guess'})`;
 }
 
 function facts(now: number): ViewerFacts {

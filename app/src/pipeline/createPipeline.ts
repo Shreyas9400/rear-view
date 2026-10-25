@@ -2,7 +2,7 @@
 
 import { WebViewCameraSource } from '../capture/webViewCameraSource';
 import type { CapturedFrame } from '../capture/source';
-import { AlertStateMachine } from '../core/alert';
+import { AlertStateMachine, DEFAULT_ALERT, type AlertConfig } from '../core/alert';
 import { ApproachEstimator } from '../core/approach';
 import { IouTracker } from '../core/tracker';
 import { ThermalEstimator } from '../health/thermalEstimator';
@@ -15,6 +15,10 @@ import { RearViewPipeline } from './pipeline';
 
 export interface PipelineOptions {
   previewHook?: (f: CapturedFrame) => void;
+  /** Starting alert thresholds from the saved calibration (D-041). */
+  alertOverrides?: Partial<AlertConfig>;
+  /** Distance scale shown to the viewer; calibrated = the user set it from a known distance. */
+  distanceScale?: () => { k: number; calibrated: boolean };
   /** If given, every accepted frame is also JPEG-encoded for the viewer and published, but only while `viewersWatching()` is true. */
   server?: { api: LocalServerApi; viewersWatching: () => boolean };
 }
@@ -39,7 +43,7 @@ export function createPipeline(o: PipelineOptions = {}): CreatedPipeline {
     detector,
     tracker: new IouTracker(),
     approach: new ApproachEstimator(),
-    alert: new AlertStateMachine(),
+    alert: new AlertStateMachine({ ...DEFAULT_ALERT, ...(o.alertOverrides ?? {}) }),
     thermal: new ThermalEstimator(),
     load: new LoadController(),
     now: () => performance.now(),
@@ -47,7 +51,7 @@ export function createPipeline(o: PipelineOptions = {}): CreatedPipeline {
   });
   let publisher: StreamPublisher | null = null;
   if (o.server) {
-    const p = new StreamPublisher(o.server.api, () => pipeline.snapshot());
+    const p = new StreamPublisher(o.server.api, () => pipeline.snapshot(), o.distanceScale);
     feeder.onStreamFrame((j) => p.publish(j));
     publisher = p;
   }

@@ -9,7 +9,7 @@
 import type { CapturedFrame } from '../capture/source';
 import type { CameraState } from '../capture/cameraHealth';
 import { ApproachEstimator } from '../core/approach';
-import { AlertStateMachine } from '../core/alert';
+import { AlertStateMachine, type AlertConfig } from '../core/alert';
 import { IouTracker } from '../core/tracker';
 import { HealthMonitor } from '../health/healthMonitor';
 import { ThermalEstimator } from '../health/thermalEstimator';
@@ -193,6 +193,11 @@ export class RearViewPipeline {
     this.alertState = this.d.alert.update({ tMs: this.d.now(), tracks: [], approach: [], health: this.health.read(this.d.now()) });
     this.unhealthy = true;
     this.publish();
+  }
+
+  /** Change alert thresholds while running (calibration). */
+  configureAlert(over: Partial<AlertConfig>): void {
+    this.d.alert.configure(over);
   }
 
   snapshot(): PipelineSnapshot {

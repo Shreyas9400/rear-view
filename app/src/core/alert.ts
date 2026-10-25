@@ -74,7 +74,16 @@ export class AlertStateMachine {
   private vehicleQuiet = 0;
   private lastNearby: { tMs: number; ids: number[]; side: Side | null } | null = null;
 
-  constructor(private readonly cfg: AlertConfig = DEFAULT_ALERT) {}
+  private cfg: AlertConfig;
+
+  constructor(cfg: AlertConfig = DEFAULT_ALERT) {
+    this.cfg = { ...cfg };
+  }
+
+  /** Change thresholds while running (the calibration screen). Takes effect from the next update. */
+  configure(over: Partial<AlertConfig>): void {
+    this.cfg = { ...this.cfg, ...over };
+  }
 
   reset(): void {
     this.qualify.clear();

@@ -32,6 +32,7 @@ export class StreamPublisher {
   constructor(
     private readonly api: LocalServerApi,
     private readonly getSnapshot: () => PipelineSnapshot,
+    private readonly getScale?: () => { k: number; calibrated: boolean },
   ) {}
 
   counters(): PublisherCounters {
@@ -104,6 +105,7 @@ export class StreamPublisher {
       modelMs: Number.isFinite(s.modelMs.median) ? Math.round(s.modelMs.median) : 0,
       droppedCapture: s.counters.paced + s.counters.feeder.droppedBusy,
       droppedBackpressure: this.c.droppedBackpressure,
+      ...(this.getScale ? { distScale: round3(this.getScale().k), distCalibrated: this.getScale().calibrated } : {}),
     };
     this.api.publishRearStatus({ json: JSON.stringify(rear) }).catch((e: unknown) => this.fail(e));
   }
@@ -114,4 +116,5 @@ export class StreamPublisher {
   }
 }
 
+const round3 = (v: number) => Math.round(v * 1000) / 1000;
 const round1 = (v: number) => (Number.isFinite(v) ? Math.round(v * 10) / 10 : 0);

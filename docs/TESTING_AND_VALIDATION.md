@@ -159,7 +159,9 @@ Add one row per executed test. **Do not fabricate rows.** Status: PASS / FAIL / 
 
 | U-vehicle-close-and-mdns (TS + Java) | 2026-10-24 | Vitest 307 tests; JUnit | VEHICLE_CLOSE: steady big box (no growth) raises it after 2 updates, small vehicles do not, hysteresis 0.35/0.28 and 4-update exit, outranks approach but not a close person, ignores tentative/young/low-confidence, health override, reports side; the replay and pipeline tests now see a growing car go NEARBY -> APPROACH -> CLOSE. mDNS: matches A/ANY queries for rearview.local only (case-insensitive, unicast bit ok), ignores other names/types/responses/garbage/compression, builds a 42-byte authoritative A response. **Not tested:** the thresholds against real distances, the phone answering real mDNS queries on its hotspot, the iPhone resolving rearview.local, auto-start on the real phone, the revoke double-tap. | PARTIAL |
 
-Totals as of 2026-10-24: TypeScript 26 files, **307 tests passed**; Java 5 classes, 45 tests passed (44 ours).
+| U-distance-calibration (TS + browser smoke) | 2026-10-25 | Vitest 318 tests; the built rear screen opened in a desktop browser against a stub server | Distance estimate (height*k/box, doubling, truck vs car, invalid inputs), k from a sample (round-trips, rejects implausible), "about" wording, defensive parsing of saved calibration, close-height validation (0.12-0.95), alert overrides with 80% exit, live AlertStateMachine.configure, publisher unchanged. Browser: the rear screen mounts without exceptions, the calibration panel opens, buttons answer "No usable confirmed vehicle" with no tracks and "Back to the defaults" on reset. **Not tested:** any real calibration on the phone, accuracy of the estimates (no known distances measured), the prompt dialog on Android, the viewer showing "calibrated". | PARTIAL |
+
+Totals as of 2026-10-24: TypeScript 26 files, **318 tests passed**; Java 5 classes, 45 tests passed (44 ours).
 
 Totals as of 2026-10-23: 11 test files, **111 tests passed**.
 
