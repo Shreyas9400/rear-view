@@ -32,7 +32,7 @@ describe('QR encoder building blocks (ISO 18004 reference values)', () => {
 });
 
 describe('encodeQr', () => {
-  const url = 'http://192.168.0.103:8080/#t=ExampleTokenNotReal12';
+  const url = 'http://192.168.0.103:8080/#t=ExampleTokenNotReal123';
 
   it('makes a square matrix of the right version size with the three finder patterns', () => {
     const m = encodeQr(url, 'M');
