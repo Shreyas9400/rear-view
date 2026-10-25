@@ -2,7 +2,7 @@
 
 Status: **M1 partly done: static inventory of the rear phone measured over adb on 2026-10-24; runtime behaviour (camera modes, WebGPU, sensor rates in the WebView, hotspot, thermal under load) still UNKNOWN.** Last updated 2026-10-24. Replace `UNKNOWN` only with measured values (add date and method). A desktop test never proves Android compatibility.
 
-**Rear phone: OnePlus 6T (A6010), serial prefix `da39…`.** All rows below marked "measured" were read with `adb` (platform-tools 37.0.1) on 2026-10-24; the folder has no git repo, so there is no app commit hash. The debug APK `app-debug.apk` (4,118,174 bytes) was installed and launched on it: `MainActivity` resumed in 907 ms, Capacitor served `https://localhost/assets/index-*.js`, no crash in logcat. That is the only app behaviour verified on the device; the page is still the placeholder.
+**Rear phone: OnePlus 6T (A6010).** All rows below marked "measured" were read with `adb` (platform-tools 37.0.1) on 2026-10-24; the folder has no git repo, so there is no app commit hash. The debug APK `app-debug.apk` (4,118,174 bytes) was installed and launched on it: `MainActivity` resumed in 907 ms, Capacitor served `https://localhost/assets/index-*.js`, no crash in logcat. That is the only app behaviour verified on the device; the page is still the placeholder.
 
 ## 1. Rear Android phone inventory (milestone M1 / gate G0)
 

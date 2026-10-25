@@ -1,0 +1,28 @@
+Smart Rear-View Assistant (driver-assistance)
+Copyright 2026 the Smart Rear-View Assistant contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+It is an experimental research prototype and not a safety system. See README.md.
+
+----------------------------------------------------------------------------
+Third-party material included in or used by this repository
+----------------------------------------------------------------------------
+
+1. YOLOX-Nano object detection model (file app/android/app/src/main/assets/models/yolox_nano.tflite)
+   YOLOX: Copyright Megvii Inc., Apache License 2.0 (https://github.com/Megvii-BaseDetection/YOLOX).
+   The LiteRT (TFLite) conversion used here is "litert-community/yolox-nano-litert" on Hugging Face
+   (https://huggingface.co/litert-community/yolox-nano-litert), Apache License 2.0.
+   Trained on the COCO dataset (annotations CC BY 4.0, https://cocodataset.org). Details, size and SHA-256:
+   app/android/app/src/main/assets/models/README.md. The model is NOT validated for this use.
+
+2. LiteRT (Google AI Edge) Android runtime, resolved by Gradle at build time, Apache License 2.0
+   (https://ai.google.dev/edge/litert). Not redistributed in source form in this repository.
+
+3. Capacitor (@capacitor/core, @capacitor/android, @capacitor/cli), Ionic, MIT License
+   (https://capacitorjs.com). Resolved by npm and Gradle at build time.
+
+4. Build and test tooling (not part of the shipped app): TypeScript (Apache License 2.0), Vite (MIT),
+   Vitest (MIT), JUnit 4 (Eclipse Public License 1.0). Resolved by npm and Gradle at build time.
+
+Each of these keeps its own licence; their terms apply to them, not to the rest of this repository.

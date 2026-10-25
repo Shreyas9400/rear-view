@@ -32,7 +32,7 @@ describe('QR encoder building blocks (ISO 18004 reference values)', () => {
 });
 
 describe('encodeQr', () => {
-  const url = 'http://192.168.0.103:8080/#t=1MPBdj18ebaCbc4BAgppBg';
+  const url = 'http://192.168.0.103:8080/#t=ExampleTokenNotReal12';
 
   it('makes a square matrix of the right version size with the three finder patterns', () => {
     const m = encodeQr(url, 'M');
@@ -56,7 +56,7 @@ describe('encodeQr', () => {
 
   it('is deterministic and differs for different text', () => {
     expect(encodeQr(url)).toEqual(encodeQr(url));
-    expect(encodeQr(url)).not.toEqual(encodeQr(url.replace('1MPB', '2MPB')));
+    expect(encodeQr(url)).not.toEqual(encodeQr(url.replace('Exam', 'Xxam')));
   });
 
   it('picks the smallest version that fits and rejects text that is too long', () => {

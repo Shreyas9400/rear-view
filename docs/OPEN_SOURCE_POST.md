@@ -69,7 +69,7 @@ Multiple cameras; sensors (GPS speed, accelerometer, gyro) to tell your own moti
 
 ## Credits and licences
 
-Detector model: Megvii YOLOX-Nano (Apache-2.0), LiteRT conversion by `litert-community/yolox-nano-litert`. Inference runtime: Google LiteRT (Apache-2.0). App shell: Capacitor (MIT). Tooling: Vite, Vitest, TypeScript. This project was built with substantial help from Claude Code (an AI coding assistant); the decisions, measurements and mistakes are recorded in `docs/TECHNICAL_DECISIONS.md` and `docs/TESTING_AND_VALIDATION.md`. **Licence: to be chosen by the maintainer** before publishing (Apache-2.0 would match the model and runtime).
+Detector model: Megvii YOLOX-Nano (Apache-2.0), LiteRT conversion by `litert-community/yolox-nano-litert`. Inference runtime: Google LiteRT (Apache-2.0). App shell: Capacitor (MIT). Tooling: Vite, Vitest, TypeScript. This project was built with substantial help from Claude Code (an AI coding assistant); the decisions, measurements and mistakes are recorded in `docs/TECHNICAL_DECISIONS.md` and `docs/TESTING_AND_VALIDATION.md`. **Licence: Apache-2.0** (see `LICENSE`; third-party attributions are in `NOTICE`).
 
 ## Help wanted
 

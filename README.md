@@ -19,6 +19,10 @@ Run the tests: `cd app && npm install && npm test`. Build a debug APK: `tools/de
 - Local network only (hotspot, no internet needed). Plain HTTP with token auth — see `docs/SECURITY_AND_PRIVACY.md` for the limits.
 - Experimental approach indication from bounding-box growth, plus proximity alerts from box size. Distance is an approximate estimate you can calibrate, not a measurement. Gyro/accelerometer are not used yet.
 
+## Licence
+
+Apache License 2.0: see `LICENSE`. Third-party components and the bundled detector model keep their own licences: see `NOTICE`.
+
 ## Documentation map
 
 | Document | Purpose |
