@@ -9,15 +9,15 @@ An **experimental, privacy-first** rear-view assistant built from two phones:
 
 ## Status
 
-**Phase 1 in progress.** Pure-logic modules (decode, tracker, approach estimator, alert state machine) exist with passing unit tests; no camera, inference runtime, server or viewer yet. Current verified position: `docs/SESSION_HANDOFF.md`.
+**Working prototype, debug builds only.** Camera, on-device detection (people and four vehicle classes), tracking, alerts (including "possible approach", "vehicle very close", "person close behind" and "detection unavailable"), a local viewer server, a Safari viewer with proximity beeps, left/right direction, full-screen mode and QR pairing all exist and are tested on one OnePlus 6T and one iPhone. Not validated against labelled footage, not field-tested in traffic, thermal behaviour needs cooling. See `docs/OPEN_SOURCE_POST.md` for the plain-language summary with measurements, `docs/SESSION_HANDOFF.md` for the exact verified state, and `docs/TESTING_AND_VALIDATION.md` for every result.
 
-Run the tests: `cd app && npm install && npm test`.
+Run the tests: `cd app && npm install && npm test`. Build a debug APK: `tools/device/build-debug.ps1` (Windows, Android SDK and JDK required).
 
 ## Key properties
 
 - Local-first: detection on-device, no cloud, no video upload, no recording by default.
 - Local network only (hotspot, no internet needed). Plain HTTP with token auth — see `docs/SECURITY_AND_PRIVACY.md` for the limits.
-- Experimental approach indication from bounding-box growth. Gyro/accelerometer are logged only in the MVP.
+- Experimental approach indication from bounding-box growth, plus proximity alerts from box size. Distance is an approximate estimate you can calibrate, not a measurement. Gyro/accelerometer are not used yet.
 
 ## Documentation map
 
@@ -34,6 +34,7 @@ Run the tests: `cd app && npm install && npm test`.
 | `docs/DEVICE_COMPATIBILITY.md` | What to discover on the real phone; compatibility matrix |
 | `docs/TROUBLESHOOTING.md` | Failure diagnosis |
 | `docs/ACCOUNT_MIGRATION.md` | Continuing from another Claude account or machine |
+| `docs/OPEN_SOURCE_POST.md` | Plain-language project summary and announcement text |
 
 ## Development
 
