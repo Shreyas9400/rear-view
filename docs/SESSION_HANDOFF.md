@@ -149,3 +149,5 @@ Update §1–§7; list tests actually run with output references; record new dec
 - **v0.4.0 (2026-10-24; D-039, D-040):** VEHICLE_CLOSE alert from proximity (uncalibrated), auto-start on app open, rearview.local name responder (unverified on the hotspot), confirm-before-revoke. The user asked whether gyro could tell who is moving; answer: not alone, GPS speed would be needed (needs a location permission and a decision); user's view: warn regardless of cause, which D-039 does. Backburner: ego-motion logging, multiple cameras.
 
 - **v0.5.0 (2026-10-25; D-041):** approximate distance and calibration of the "close" alert points from the rear screen. The proximity sensor is not used. Nothing calibrated on real distances yet.
+
+- **Published (2026-10-25):** the user had a new public repository created, `https://github.com/Shreyas9400/rear-view` (Apache-2.0), and `main` (10 commits at the time) was pushed there. The older `Shreyas9400/driver-assistance` repository was NOT touched and has a different, earlier history. Local tags v0.1.0-debug to v0.5.0-debug exist only on this machine; APK files are not in the repository (they are in the git-ignored `release/` folder).
