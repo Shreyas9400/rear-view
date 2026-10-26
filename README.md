@@ -13,6 +13,31 @@ An **experimental, privacy-first** rear-view assistant built from two phones:
 
 Run the tests: `cd app && npm install && npm test`. Build a debug APK: `tools/device/build-debug.ps1` (Windows, Android SDK and JDK required).
 
+## What it looks like
+
+![The iPhone viewer in six alert states](docs/images/viewer-states.jpg)
+
+*The real viewer page rendered with **scripted demo data** (a plain synthetic backdrop and made-up detections), not a real drive: no tracked vehicle, vehicle nearby, possible approach, vehicle very close, person close, detection unavailable. Mirror is on, so an approach from the left of the camera picture reads "from the RIGHT" like a rear-view mirror.*
+
+![Alert states storyboard](docs/images/viewer-alert-states.gif)
+
+*The same six states as an animation (scripted, about two seconds each).*
+
+![How the parts fit together](docs/images/architecture.svg)
+
+A real-footage demo is still to come. If you run it on your own footage, please share screenshots or a clip in an issue.
+
+## Install
+
+Full guide: **[docs/INSTALL.md](docs/INSTALL.md)**. In short, there is no prebuilt app yet, so you build and sideload a debug APK:
+
+```bash
+cd app && npm install && npm run build && npx cap sync android
+cd android && ./gradlew assembleDebug      # Windows: gradlew.bat assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk   # path relative to app/android
+```
+Open the app on the rear phone, allow the camera, turn on its hotspot, join your iPhone to it, scan the QR code once in Safari, and bookmark the address.
+
 ## Key properties
 
 - Local-first: detection on-device, no cloud, no video upload, no recording by default.
@@ -38,6 +63,7 @@ Apache License 2.0: see `LICENSE`. Third-party components and the bundled detect
 | `docs/DEVICE_COMPATIBILITY.md` | What to discover on the real phone; compatibility matrix |
 | `docs/TROUBLESHOOTING.md` | Failure diagnosis |
 | `docs/ACCOUNT_MIGRATION.md` | Continuing from another Claude account or machine |
+| `docs/INSTALL.md` | Build, install, connect, calibrate, troubleshoot |
 | `docs/OPEN_SOURCE_POST.md` | Plain-language project summary and announcement text |
 
 ## Development

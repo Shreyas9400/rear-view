@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 400" width="940" height="400" role="img" aria-labelledby="t d">
+  <title id="t">Smart Rear-View Assistant architecture</title>
+  <desc id="d">The rear Android phone captures video, detects and tracks vehicles and people, raises alerts and serves a local stream; an iPhone browser shows it over the phone's Wi-Fi hotspot.</desc>
+  <defs>
+    <marker id="a" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 z" fill="#34495e"/></marker>
+    <style>
+      .bg { fill: #ffffff; }
+      .box { fill: #eaf2fb; stroke: #34495e; stroke-width: 1.5; rx: 8; }
+      .box2 { fill: #fdf3e3; stroke: #8a5a00; stroke-width: 1.5; rx: 8; }
+      .phone { fill: #f7f9fb; stroke: #34495e; stroke-width: 2; stroke-dasharray: 6 4; rx: 14; }
+      .t { font: 600 14px -apple-system, Segoe UI, Helvetica, Arial, sans-serif; fill: #1b2733; }
+      .s { font: 12px -apple-system, Segoe UI, Helvetica, Arial, sans-serif; fill: #3d4f5f; }
+      .h { font: 700 15px -apple-system, Segoe UI, Helvetica, Arial, sans-serif; fill: #1b2733; }
+      .ln { stroke: #34495e; stroke-width: 1.8; fill: none; marker-end: url(#a); }
+    </style>
+  </defs>
+  <rect class="bg" width="940" height="400"/>
+
+  <rect class="phone" x="12" y="30" width="660" height="330"/>
+  <text class="h" x="30" y="56">Rear Android phone (Capacitor app, local only)</text>
+
+  <rect class="box" x="30" y="80" width="120" height="76"/>
+  <text class="t" x="42" y="108">Camera</text><text class="s" x="42" y="128">1280x720, 15 fps</text><text class="s" x="42" y="144">getUserMedia</text>
+
+  <rect class="box" x="186" y="80" width="130" height="76"/>
+  <text class="t" x="198" y="108">Frame worker</text><text class="s" x="198" y="128">letterbox 416, JPEG</text><text class="s" x="198" y="144">newest frame wins</text>
+
+  <rect class="box" x="352" y="80" width="150" height="76"/>
+  <text class="t" x="364" y="108">Native detector</text><text class="s" x="364" y="128">YOLOX-nano, LiteRT</text><text class="s" x="364" y="144">CPU, 2 threads</text>
+
+  <rect class="box" x="538" y="80" width="120" height="76"/>
+  <text class="t" x="550" y="108">Tracker</text><text class="s" x="550" y="128">IoU, 3 of 5 hits</text><text class="s" x="550" y="144">coasting box</text>
+
+  <rect class="box" x="538" y="196" width="120" height="76"/>
+  <text class="t" x="550" y="224">Alert logic</text><text class="s" x="550" y="244">approach, close,</text><text class="s" x="550" y="260">person, side, health</text>
+
+  <rect class="box2" x="352" y="196" width="150" height="76"/>
+  <text class="t" x="364" y="224">Health + load</text><text class="s" x="364" y="244">stale/failed checks</text><text class="s" x="364" y="260">thermal slowdown</text>
+
+  <rect class="box" x="186" y="280" width="316" height="62"/>
+  <text class="t" x="198" y="306">Local server (HTTP + WebSocket)</text><text class="s" x="198" y="326">port 8080, token auth, 1 Hz status</text>
+
+  <path class="ln" d="M150,118 L186,118"/>
+  <path class="ln" d="M316,118 L352,118"/>
+  <path class="ln" d="M502,118 L538,118"/>
+  <path class="ln" d="M598,156 L598,196"/>
+  <path class="ln" d="M538,234 L502,234"/>
+  <path class="ln" d="M598,272 L598,311 L502,311"/>
+
+  <rect class="box" x="740" y="120" width="170" height="150"/>
+  <text class="h" x="756" y="148">iPhone (Safari)</text>
+  <text class="s" x="756" y="172">live video + boxes</text>
+  <text class="s" x="756" y="190">red outline, arrows</text>
+  <text class="s" x="756" y="208">proximity beeps</text>
+  <text class="s" x="756" y="226">full screen, mirror</text>
+  <text class="s" x="756" y="244">stale / lost banners</text>
+  <text class="s" x="756" y="262">nothing to install</text>
+
+  <path class="ln" d="M502,311 L680,311 L680,230 L740,230"/>
+  <text class="s" x="690" y="300">hotspot Wi-Fi,</text>
+  <text class="s" x="690" y="316">plain HTTP,</text><text class="s" x="690" y="332">no cloud</text>
+</svg>

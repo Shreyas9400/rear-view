@@ -362,7 +362,7 @@ function render(): void {
   const r = rear && now - rearAt < 3000 ? rear : null;
   els.stats.textContent = [
     `State: ${v.state}  Frame age: ${f.frameAgeMs === null ? '-' : Math.round(f.frameAgeMs) + ' ms'}  Frames: ${framesDrawn}${lastCloseNote && v.state !== 'LIVE' ? '  (' + lastCloseNote + ')' : ''}`,
-    `Nearest box: ${nearestText()}` + (r ? '  ' : '') + (r ? `Detections/s: ${r.inferFps ?? '-'}  Camera fps: ${r.captureFps ?? '-'}  Latency p95: ${r.inferP95Ms ?? '-'} ms` : 'Rear status: -'),
+    `Nearest box: ${nearestText()}  ` + (r ? `Detections/s: ${r.inferFps ?? '-'}  Camera fps: ${r.captureFps ?? '-'}  Latency p95: ${r.inferP95Ms ?? '-'} ms` : 'Rear status: -'),
   ].join('\n');
   els.detail.textContent = newestMeta && (v.state === 'LIVE' || v.state === 'DELAYED') ? newestMeta.alert.reasons.join('; ') : '';
 
