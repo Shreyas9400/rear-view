@@ -16,7 +16,11 @@ You need two devices on the same local network: a **rear Android phone** that fi
 
 ## 2. Get the app onto the rear phone
 
-There is no Play Store release and no prebuilt APK in this repository yet, so you build it yourself.
+### Option A: the signed pre-release APK (easiest)
+
+Download `rearview-v0.5.1.apk` from the [Releases page](https://github.com/Shreyas9400/rear-view/releases), check its SHA-256 against the value in the release notes, copy it to the phone and open it (allow "install unknown apps" for your file manager or browser when asked). Android and Play Protect may warn that the app is from an unknown source: that is expected for a sideloaded APK. If you previously installed a debug build you made yourself, uninstall it first (different signing key).
+
+### Option B: build it yourself
 
 ```bash
 git clone https://github.com/Shreyas9400/rear-view.git

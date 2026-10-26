@@ -1,4 +1,9 @@
 node_modules/
+# Signing keys and passwords must never be committed (D-044)
+*.jks
+*.keystore
+keystore.properties
+signing/
 app/dist/
 app/android/app/build/
 app/android/build/

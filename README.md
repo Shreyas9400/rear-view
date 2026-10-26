@@ -43,7 +43,7 @@ If you run it on your own footage, please share screenshots or a clip in an issu
 
 ## Install
 
-Full guide: **[docs/INSTALL.md](docs/INSTALL.md)**. In short, there is no prebuilt app yet, so you build and sideload a debug APK:
+Full guide: **[docs/INSTALL.md](docs/INSTALL.md)**. The easiest way is the signed experimental pre-release APK on the [Releases page](https://github.com/Shreyas9400/rear-view/releases) (sideload it on the rear Android phone). Or build and sideload a debug APK yourself:
 
 ```bash
 cd app && npm install && npm run build && npx cap sync android
