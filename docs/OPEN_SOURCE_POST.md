@@ -32,6 +32,7 @@ Camera frames are letterboxed to 416 x 416 and JPEG-packed in a web worker, hand
 ## What it cannot do (please read)
 
 - **No ground truth.** We have not scored the alerts against labelled footage. We do not know how often "possible approach" is right.
+- **False alarms happen.** In a hand-held test the "person close behind" alert fired on a hand in front of the lens. In a recorded motorway clip many clearly visible cars far away got no box in many frames.
 - **It only knows people, cars, motorcycles, buses and trucks.** Walls, poles, kerbs, bikes, animals and low obstacles raise nothing. Something very close to the lens may leave the picture.
 - **Distance is a guess.** Box size depends on the vehicle, the lens and the mount. "Very close" starts at an untuned box size that you are meant to calibrate for your own setup.
 - **It cannot tell whether you or the car behind is moving.** Both look the same in the picture. It warns on closeness either way.

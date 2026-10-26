@@ -70,8 +70,31 @@ export function mountRearScreen(root: HTMLElement): void {
   root.append(style, wrap);
   const ctx = canvas.getContext('2d')!;
 
+  // The preview frame and the boxes are always drawn together. The frame arrives at most every 200 ms and the detections a
+  // little later; drawing the boxes only when a result arrived made them blink (each new frame wiped them).
+  const frameBuf = document.createElement('canvas');
+  frameBuf.width = canvas.width;
+  frameBuf.height = canvas.height;
+  const bctx = frameBuf.getContext('2d')!;
+  let haveFrame = false;
+  const compose = () => {
+    if (!haveFrame) return;
+    ctx.drawImage(frameBuf, 0, 0);
+    const s = last;
+    if (!s || !s.running || s.alert.level === 'UNAVAILABLE') return; // never draw boxes of a stale or unavailable detector
+    ctx.lineWidth = 2;
+    for (const tr of s.tracks) {
+      if (tr.state === 'lost') continue;
+      ctx.setLineDash(tr.state === 'confirmed' ? [] : [6, 4]);
+      ctx.strokeStyle = tr.state === 'confirmed' ? '#ffd400' : '#9aa';
+      ctx.strokeRect(tr.box.x * canvas.width, tr.box.y * canvas.height, tr.box.w * canvas.width, tr.box.h * canvas.height);
+    }
+    ctx.setLineDash([]);
+  };
   const preview = (f: CapturedFrame) => {
-    ctx.drawImage(f.bitmap, 0, 0, canvas.width, canvas.height);
+    bctx.drawImage(f.bitmap, 0, 0, frameBuf.width, frameBuf.height);
+    haveFrame = true;
+    compose();
   };
   let viewers = 0;
   let serverInfo: LocalServerInfo | null = null;
@@ -204,14 +227,7 @@ Viewers connected: ${viewers}. Plain HTTP: anyone on this network who has the ad
     info.textContent = v.lines.join('\n');
     if (calDetails.open) showNearest(s);
     btn.textContent = s.running ? 'Stop' : 'Start';
-    // boxes from the latest result (drawn over the latest preview frame; both are a few hundred ms old at most)
-    if (s.running && s.alert.level !== 'UNAVAILABLE') {
-      ctx.lineWidth = 2;
-      for (const d of s.detections) {
-        ctx.strokeStyle = '#ffd400';
-        ctx.strokeRect(d.box.x * canvas.width, d.box.y * canvas.height, d.box.w * canvas.width, d.box.h * canvas.height);
-      }
-    }
+    compose();
   };
   pipeline.onUpdate(render);
   render(pipeline.snapshot());

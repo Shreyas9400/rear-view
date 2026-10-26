@@ -15,6 +15,20 @@ Run the tests: `cd app && npm install && npm test`. Build a debug APK: `tools/de
 
 ## What it looks like
 
+### A real run
+
+![The rear phone's screen during a real run](docs/images/real-run.gif)
+
+*Real recording of the rear phone's own screen (OnePlus 6T, v0.5.0): the phone filmed a laptop screen playing a motorway dashcam video. Boxes, the status headline and the alert colour are what the app drew, at about 7 detections per second with a frame-to-result latency of about 0.14 s. The clip shows a car passing close on the right turning the headline red ("Vehicle very close behind"). In this recording the boxes on the rear phone's preview blink on and off: that was a drawing bug in v0.5.0 (each new preview frame wiped the boxes), fixed in v0.5.1; the viewer on the iPhone was not affected. The video was filmed facing forward, so "behind" just means "in the camera's view".*
+
+| A vehicle very close | Several vehicles tracked |
+| --- | --- |
+| ![Vehicle very close behind](docs/images/real-very-close.jpg) | ![Vehicles detected behind](docs/images/real-vehicles-behind.jpg) |
+
+**Look closely: it misses things.** In the recording, plenty of clearly visible cars far down the road have no box in many frames, and tiny distant boxes come and go. That is what a small model on an old phone does, and it is why this is not a safety system. The footage is a third-party dashcam video, published here with the maintainer's confirmation; if you hold the rights and object, open an issue and it will be removed. Number plates are not legible at this size and one is blurred. In a second, hand-held test the "person close" alert also fired on a hand held in front of the lens: false alarms exist too.
+
+### The viewer's alert states (scripted demo data)
+
 ![The iPhone viewer in six alert states](docs/images/viewer-states.jpg)
 
 *The real viewer page rendered with **scripted demo data** (a plain synthetic backdrop and made-up detections), not a real drive: no tracked vehicle, vehicle nearby, possible approach, vehicle very close, person close, detection unavailable. Mirror is on, so an approach from the left of the camera picture reads "from the RIGHT" like a rear-view mirror.*
@@ -25,7 +39,7 @@ Run the tests: `cd app && npm install && npm test`. Build a debug APK: `tools/de
 
 ![How the parts fit together](docs/images/architecture.svg)
 
-A real-footage demo is still to come. If you run it on your own footage, please share screenshots or a clip in an issue.
+If you run it on your own footage, please share screenshots or a clip in an issue.
 
 ## Install
 

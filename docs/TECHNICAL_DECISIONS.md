@@ -351,3 +351,8 @@ Template: ID · Date · Decision · Context/alternatives · Reason · Trade-offs
 - **Decision:** the repository is licensed under Apache License 2.0 (`LICENSE`, the unmodified canonical text); `NOTICE` names the project and attributes the bundled YOLOX-Nano model (Apache-2.0, Megvii; LiteRT conversion by litert-community), LiteRT, Capacitor and the tooling, each under its own licence. `app/package.json` carries `"license": "Apache-2.0"`.
 - **Why Apache-2.0:** it matches the licence of the model and the inference runtime, includes a patent grant, and requires keeping NOTICE attributions.
 - **Not done / needs the maintainer:** source files carry no per-file licence headers (optional); the copyright holder line in NOTICE says "the Smart Rear-View Assistant contributors" and can be changed to a name; a legal review was not done, and the model's COCO-derived training data terms were not examined beyond naming them.
+
+## D-043 Rear preview draws frame and boxes together
+- **Date:** 2026-10-26 · **Status:** implemented; checked on the phone with a second recording (boxes steady); not measured
+- **Problem:** the rear screen redrew the camera frame every 200 ms and drew the boxes only when a detection result arrived, so each new frame wiped the boxes until the next result and they blinked (seen in the real recording, "box going on and off"). The viewer on the iPhone carries tracks inside each frame and was not affected.
+- **Decision:** the rear screen keeps the latest frame in a buffer canvas and redraws frame plus current tracks together on every frame and every update. It never draws boxes while the alert is UNAVAILABLE or the pipeline is stopped.
